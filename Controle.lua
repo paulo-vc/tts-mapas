@@ -826,18 +826,37 @@ local INK = { 0.97, 0.91, 0.76 }
 local GOLD = { 0.98, 0.80, 0.40 }
 local MUTED = { 0.80, 0.70, 0.52 }
 
+-- Quantas unidades do mundo vale 1 unidade local em cada eixo, medido no próprio objeto
+-- (o Custom Tile não converte como o bloco, então não dá para usar só a escala).
+function localUnit(axis)
+  local o = self.positionToWorld({ 0, 0, 0 })
+  local v = { 0, 0, 0 }
+  v[axis] = 1
+  local p = self.positionToWorld(v)
+  local dx, dy, dz = p.x - o.x, p.y - o.y, p.z - o.z
+  return math.sqrt(dx * dx + dy * dy + dz * dz)
+end
+
+-- No Custom Tile a imagem fica "de ponta-cabeça" em relação ao eixo local, então espelhamos o layout
+-- e giramos os botões 180° para o topo do painel coincidir com a plaqueta da textura.
+function isTextured()
+  local co = self.getCustomObject()
+  return co and co.image and co.image ~= ""
+end
+
 function place(x, z)
   local s = self.getScale()
-  -- Altura inteira (não a metade): o pivô do Custom Tile fica na base, não no centro como no bloco.
-  local top = (self.getBoundsNormalized().size.y + 0.05) / s.y
-  return { x / s.x, top, z / s.z }, { 1 / s.x, 1 / s.y, 1 / s.z }
+  local kx, ky, kz = localUnit(1), localUnit(2), localUnit(3)
+  local top = (self.getBoundsNormalized().size.y + 0.05) / ky
+  local flip = isTextured() and -1 or 1
+  return { flip * x / kx, top, flip * z / kz }, { 1 / s.x, 1 / s.y, 1 / s.z }, { 0, flip == -1 and 180 or 0, 0 }
 end
 
 function B(text, fn, x, z, w, h, color, fontColor, tip)
-  local pos, sc = place(x, z)
+  local pos, sc, rot = place(x, z)
   self.createButton({
     label = text, click_function = fn, function_owner = self,
-    position = pos, scale = sc,
+    position = pos, scale = sc, rotation = rot,
     width = w * U, height = h * U, font_size = math.floor(h * U * 0.45),
     color = color or BTN, font_color = fontColor or INK,
     hover_color = { 0.55, 0.38, 0.16 }, press_color = { 0.75, 0.55, 0.2 },
@@ -850,10 +869,10 @@ function L(text, x, z, h, fontColor)
 end
 
 function I(fn, placeholder, value, x, z, w, h)
-  local pos, sc = place(x, z)
+  local pos, sc, rot = place(x, z)
   self.createInput({
     input_function = fn, function_owner = self, label = placeholder, value = value,
-    position = pos, scale = sc, alignment = 2,
+    position = pos, scale = sc, rotation = rot, alignment = 2,
     width = w * U, height = h * U, font_size = math.floor(h * U * 0.4),
     color = { 0.93, 0.86, 0.70 }, font_color = { 0.20, 0.12, 0.06 },
   })
