@@ -18,7 +18,7 @@ pendingDelete = nil
 calibCorner1 = nil
 
 local U = 450          -- unidades de botão por unidade do mundo (ajuste se os botões ficarem grandes/pequenos)
-local BOARD = { w = 8, d = 16.5 }   -- mesma proporção de assets/tabula.png
+local BOARD = { w = 8, d = 10.5 }
 local ROWS = 7
 local GRID_STEP = 0.25
 local MOVE_STEP = 0.5
@@ -789,80 +789,29 @@ end
 
 
 --------------------------------------------------------------------------
--- Aparência: placa de madeira
+-- Aparência da placa (bloco comum)
 --------------------------------------------------------------------------
--- Ajusta a escala para a placa ter BOARD.w x BOARD.d no mundo, seja um bloco ou um Custom Tile com a textura.
--- O script fica sempre num bloco (onde os botões se posicionam de forma confiável).
--- A textura de madeira é um Custom Tile "colado" em cima do bloco como attachment.
 local BOARD_THICK = 0.2
 
 function fitBoard()
+  -- Versões anteriores colavam uma textura como attachment; remove se sobrou alguma.
+  if D.skin or #self.getAttachments() > 0 then
+    for _, a in ipairs(self.removeAttachments()) do a.destruct() end
+    D.skin, D.skinRot = nil, nil
+  end
   local s = self.getScale()
   if math.abs(s.x - BOARD.w) > 0.01 or math.abs(s.z - BOARD.d) > 0.01 or math.abs(s.y - BOARD_THICK) > 0.01 then
     self.setScale({ BOARD.w, BOARD_THICK, BOARD.d })
   end
   self.setColorTint({ 0.30, 0.18, 0.09 })
-  if D.skin and #self.getAttachments() == 0 then applySkin() end
-end
-
--- Madeira: selecione o Custom Tile com a textura (assets/tabula.png) e clique em "Madeira".
-function b_skin(o, color)
-  if not isAdmin(color) then return end
-  for _, obj in ipairs(Player[color].getSelectedObjects()) do
-    local co = obj.getCustomObject()
-    if obj ~= self and co and co.image and co.image ~= "" then
-      D.skin = co.image
-      obj.destruct()
-      applySkin()
-      return say(color, "Madeira aplicada. Se a plaqueta ficar embaixo, clique em \"Girar madeira\".")
-    end
-  end
-  say(color, "Selecione o tile com a textura de madeira (Custom Tile) e clique de novo.")
-end
-
-function b_skinrot(o, color)
-  if not isAdmin(color) then return end
-  if not D.skin then return say(color, "Aplique a madeira primeiro.") end
-  D.skinRot = ((D.skinRot or 0) + 180) % 360
-  applySkin()
-end
-
-function applySkin()
-  for _, a in ipairs(self.removeAttachments()) do a.destruct() end
-  local p, r = self.getPosition(), self.getRotation()
-  local tile = spawnObject({
-    type = "Custom_Tile",
-    position = { p.x, p.y + 3, p.z },
-    rotation = { r.x, r.y + (D.skinRot or 0), r.z },
-  })
-  tile.setCustomObject({ image = D.skin, type = 0, thickness = 0.1, stretch = true })
-  -- Espera o tile carregar, ajusta o tamanho, encosta no topo do bloco e cola.
-  Wait.condition(function()
-    local s = tile.getScale()
-    local b = tile.getBoundsNormalized().size
-    tile.setScale({ s.x * BOARD.w / b.x, s.y, s.z * BOARD.d / b.z })
-    Wait.frames(function()
-      local tb = tile.getBounds()
-      local top = self.getPosition().y + BOARD_THICK / 2
-      local bp = self.getPosition()
-      tile.setPosition({ bp.x, top + tb.size.y / 2 + 0.005, bp.z })
-      tile.setRotation({ r.x, r.y + (D.skinRot or 0), r.z })
-      Wait.frames(function()
-        self.addAttachment(tile)
-        Wait.frames(build, 3)
-      end, 3)
-    end, 3)
-  end, function()
-    return not tile.spawning and tile.getBoundsNormalized().size.x > 0
-  end, 20)
 end
 
 --------------------------------------------------------------------------
 -- Layout (coordenadas em unidades do mundo, a partir do centro do painel; +z = topo)
 --------------------------------------------------------------------------
-local BTN = { 0.20, 0.12, 0.06, 0.93 }
-local BTN_SOFT = { 0.29, 0.18, 0.09, 0.93 }
-local BRASS = { 0.62, 0.45, 0.16, 0.97 }
+local BTN = { 0.20, 0.12, 0.06, 0.95 }
+local BTN_SOFT = { 0.36, 0.23, 0.12, 0.95 }
+local BRASS = { 0.62, 0.45, 0.16, 0.98 }
 local GREEN = { 0.27, 0.37, 0.16, 0.95 }
 local RED = { 0.47, 0.16, 0.11, 0.95 }
 local FOLDER = { 0.42, 0.29, 0.12, 0.95 }
@@ -870,19 +819,32 @@ local INK = { 0.97, 0.91, 0.76 }
 local GOLD = { 0.98, 0.80, 0.40 }
 local MUTED = { 0.80, 0.70, 0.52 }
 
--- Posições no bloco: unidade local = unidade do mundo / escala (o bloco tem 1x1x1 em escala 1).
--- Os botões ficam um pouco acima do topo para não sumirem embaixo da madeira.
+tab = "mapas"
+local TABS = {
+  { id = "mapas", label = "Mapas" },
+  { id = "imagem", label = "Imagem" },
+  { id = "grade", label = "Grade" },
+  { id = "fog", label = "Fog" },
+  { id = "area", label = "Área" },
+}
+function setTab(id) tab = id; build() end
+function t_mapas() setTab("mapas") end
+function t_imagem() setTab("imagem") end
+function t_grade() setTab("grade") end
+function t_fog() setTab("fog") end
+function t_area() setTab("area") end
+
 function place(x, z)
   local s = self.getScale()
-  local top = 0.5 + 0.12 / s.y
-  return { x / s.x, top, z / s.z }, { 1 / s.x, 1 / s.y, 1 / s.z }, { 0, 0, 0 }
+  local top = 0.5 + 0.02 / s.y
+  return { x / s.x, top, z / s.z }, { 1 / s.x, 1 / s.y, 1 / s.z }
 end
 
 function B(text, fn, x, z, w, h, color, fontColor, tip)
-  local pos, sc, rot = place(x, z)
+  local pos, sc = place(x, z)
   self.createButton({
     label = text, click_function = fn, function_owner = self,
-    position = pos, scale = sc, rotation = rot,
+    position = pos, scale = sc,
     width = w * U, height = h * U, font_size = math.floor(h * U * 0.45),
     color = color or BTN, font_color = fontColor or INK,
     hover_color = { 0.55, 0.38, 0.16 }, press_color = { 0.75, 0.55, 0.2 },
@@ -895,10 +857,10 @@ function L(text, x, z, h, fontColor)
 end
 
 function I(fn, placeholder, value, x, z, w, h)
-  local pos, sc, rot = place(x, z)
+  local pos, sc = place(x, z)
   self.createInput({
     input_function = fn, function_owner = self, label = placeholder, value = value,
-    position = pos, scale = sc, rotation = rot, alignment = 2,
+    position = pos, scale = sc, alignment = 2,
     width = w * U, height = h * U, font_size = math.floor(h * U * 0.4),
     color = { 0.93, 0.86, 0.70 }, font_color = { 0.20, 0.12, 0.06 },
   })
@@ -908,7 +870,7 @@ function build()
   self.clearButtons()
   self.clearInputs()
   local m = current()
-  local W = BOARD.w - 1.2
+  local W = BOARD.w - 0.6
   local hw = W / 2 - 0.05
   local qw = W / 4 - 0.08
   local qx = { -W * 3 / 8, -W / 8, W / 8, W * 3 / 8 }
@@ -916,131 +878,169 @@ function build()
   local cx = { -W / 3, 0, W / 3 }
 
   -- Cursor vertical: cada linha ocupa sua altura + um respiro.
-  local z = BOARD.d / 2 - 0.5
+  local z = BOARD.d / 2 - 0.3
   local function line(h)
     local c = z - h / 2
     z = z - h - 0.1
     return c
   end
+  local function gap(h) z = z - h end
   local function section(title)
-    L("-  " .. title .. "  -", 0, line(0.3), 0.3, GOLD)
+    L(title, 0, line(0.3), 0.3, GOLD)
   end
   local function on(flag) return flag and BRASS or BTN end
+  local function needMap()
+    if m then return true end
+    L("Carregue um mapa na aba Mapas.", 0, line(0.4), 0.35, MUTED)
+    return false
+  end
 
-  -- Cabeçalho (cai sobre a placa escura da textura)
-  local c = line(0.6)
-  L(D.openFolder and ("MAPAS  /  " .. D.openFolder) or "MAPAS", 0, c, 0.55, GOLD)
+  -- Cabeçalho: título + mapa ativo
+  local c = line(0.55)
+  L("MAPAS", 0, c, 0.5, GOLD)
+  c = line(0.3)
+  L(m and ("Ativo: " .. m.name) or "Nenhum mapa ativo", 0, c, 0.28, MUTED)
 
-  c = line(0.5); I("in_name", "Nome (mapa ou pasta)", newName, 0, c, W, 0.5)
-  c = line(0.5); I("in_url", "Link da imagem (.jpg / .png)", newUrl, 0, c, W, 0.5)
+  -- Abas
   c = line(0.5)
-  B("+ Adicionar link", "b_add", -W / 4, c, hw, 0.5, GREEN)
-  B("+ Arquivo do PC", "b_custom", W / 4, c, hw, 0.5, GREEN, INK, "Escolher uma imagem do seu PC e subir para a Cloud")
-  c = line(0.5)
-  B("+ Nova pasta", "b_newfolder", -W / 4, c, hw, 0.5, FOLDER, INK, "Cria uma pasta com o nome digitado")
-  B("Mover atual p/ cá", "b_move", W / 4, c, hw, 0.5, FOLDER, INK, "Move o mapa ativo para a pasta aberta (ou para a raiz)")
+  local tw = W / #TABS
+  for k, t in ipairs(TABS) do
+    B(t.label, "t_" .. t.id, -W / 2 + tw * (k - 0.5), c, tw - 0.06, 0.5,
+      tab == t.id and BRASS or BTN_SOFT, tab == t.id and { 0.15, 0.08, 0.03 } or INK)
+  end
+  gap(0.15)
 
-  -- Lista
-  local entries = getEntries()
-  local pages = math.max(1, math.ceil(#entries / ROWS))
-  if page > pages then page = pages end
-  local listTop = z
-  for n = 1, ROWS do
-    local e = entries[(page - 1) * ROWS + n]
-    local rz = listTop - (n - 1) * 0.58 - 0.24
-    if e then
-      if e.kind == "back" then
-        B("<  Voltar", "s" .. n, 0, rz, W, 0.48, BTN_SOFT)
-      elseif e.kind == "folder" then
-        B("[ " .. e.name .. " ]   " .. e.count .. " mapa(s)", "s" .. n, 0, rz, W, 0.48, FOLDER, INK,
-          "Clique: abrir   |   Botão direito 2x: apagar pasta")
-      else
-        local mp = D.maps[e.i]
-        local sel = (e.i == D.current)
-        B((sel and ">  " or "") .. mp.name .. (mp.saved and "  *" or ""), "s" .. n, 0, rz, W, 0.48,
-          sel and BRASS or BTN, INK, "Clique: carregar   |   Botão direito 2x: apagar   |   * = tem estado salvo")
+  if tab == "mapas" then
+    c = line(0.5); I("in_name", "Nome (mapa ou pasta)", newName, 0, c, W, 0.5)
+    c = line(0.5); I("in_url", "Link da imagem (.jpg / .png)", newUrl, 0, c, W, 0.5)
+    c = line(0.5)
+    B("+ Link", "b_add", -W / 4, c, hw, 0.5, GREEN, INK, "Adiciona o mapa do link digitado")
+    B("+ Arquivo do PC", "b_custom", W / 4, c, hw, 0.5, GREEN, INK, "Escolher uma imagem do seu PC e subir para a Cloud")
+    c = line(0.5)
+    B("+ Pasta", "b_newfolder", -W / 4, c, hw, 0.5, FOLDER, INK, "Cria uma pasta com o nome digitado")
+    B("Mover atual p/ cá", "b_move", W / 4, c, hw, 0.5, FOLDER, INK, "Move o mapa ativo para a pasta aberta (ou para a raiz)")
+    gap(0.1)
+
+    if D.openFolder then L("Pasta: " .. D.openFolder, 0, line(0.3), 0.3, GOLD) end
+    local entries = getEntries()
+    local pages = math.max(1, math.ceil(#entries / ROWS))
+    if page > pages then page = pages end
+    local listTop = z
+    for n = 1, ROWS do
+      local e = entries[(page - 1) * ROWS + n]
+      local rz = listTop - (n - 1) * 0.58 - 0.24
+      if e then
+        if e.kind == "back" then
+          B("<  Voltar", "s" .. n, 0, rz, W, 0.48, BTN_SOFT)
+        elseif e.kind == "folder" then
+          B("[ " .. e.name .. " ]   " .. e.count .. " mapa(s)", "s" .. n, 0, rz, W, 0.48, FOLDER, INK,
+            "Clique: abrir   |   Botão direito 2x: apagar pasta")
+        else
+          local mp = D.maps[e.i]
+          local sel = (e.i == D.current)
+          B((sel and ">  " or "") .. mp.name .. (mp.saved and "  *" or ""), "s" .. n, 0, rz, W, 0.48,
+            sel and BRASS or BTN, sel and { 0.15, 0.08, 0.03 } or INK,
+            "Clique: carregar   |   Botão direito 2x: apagar   |   * = tem estado salvo")
+        end
       end
     end
+    if #entries == 0 then L("Nenhum mapa ainda.", 0, listTop - 0.24, 0.4, MUTED) end
+    z = listTop - ROWS * 0.58
+    c = line(0.45)
+    B("<", "b_prev", -W / 3, c, 1.1, 0.45)
+    L(page .. " / " .. pages, 0, c, 0.4, MUTED)
+    B(">", "b_next", W / 3, c, 1.1, 0.45)
+    gap(0.1)
+    c = line(0.5)
+    B("Salvar estado", "b_save", -W / 4, c, hw, 0.5, GREEN, INK, "Guarda a posição de todos os props e tokens em cima do mapa")
+    B("Restaurar", "b_restore", W / 4, c, hw, 0.5, RED, INK, "Volta a mesa para o último estado salvo")
+
+  elseif tab == "imagem" then
+    if needMap() then
+      section("Exibição")
+      c = line(0.5)
+      B("Mesa", "f_mesa", cx[1], c, cw, 0.5, on(m.fit == "mesa"), INK, "Imagem direto na parte customizável da mesa")
+      B("Caber", "f_caber", cx[2], c, cw, 0.5, on(m.fit == "caber"), INK, "Tile por cima, imagem inteira visível")
+      B("Preencher", "f_preencher", cx[3], c, cw, 0.5, on(m.fit == "preencher"), INK, "Tile por cima, cobre a área toda")
+      gap(0.1)
+      section("Ajuste (Caber / Preencher)")
+      c = line(0.5)
+      B("Zoom -", "a_zout", qx[1], c, qw, 0.5)
+      B("Zoom +", "a_zin", qx[2], c, qw, 0.5)
+      B("Girar", "a_rot", qx[3], c, qw, 0.5)
+      B("Reset", "a_reset", qx[4], c, qw, 0.5)
+      c = line(0.5)
+      B("<", "a_left", qx[1], c, qw, 0.5)
+      B("^", "a_up", qx[2], c, qw, 0.5)
+      B("v", "a_down", qx[3], c, qw, 0.5)
+      B(">", "a_right", qx[4], c, qw, 0.5)
+    end
+
+  elseif tab == "grade" then
+    if needMap() then
+      local g = m.grid
+      local gon = g and g.on
+      local snap = not (g and g.snap == false)
+      c = line(0.5)
+      B(gon and "Grade: ON" or "Grade: OFF", "g_toggle", -W / 4, c, hw, 0.5, on(gon))
+      B(snap and "Snap: ON" or "Snap: OFF", "g_snap", W / 4, c, hw, 0.5, on(snap), INK, "Peças encaixam no centro dos quadrados")
+      gap(0.1)
+      section("Tamanho do quadrado")
+      c = line(0.5)
+      B("-", "g_less", cx[1], c, cw, 0.5)
+      L(tostring(g and g.size or 1), cx[2], c, 0.4)
+      B("+", "g_more", cx[3], c, cw, 0.5)
+      gap(0.1)
+      section("Alinhar com o mapa")
+      c = line(0.5)
+      B("<", "g_left", qx[1], c, qw, 0.5)
+      B("^", "g_up", qx[2], c, qw, 0.5)
+      B("v", "g_down", qx[3], c, qw, 0.5)
+      B(">", "g_right", qx[4], c, qw, 0.5)
+    end
+
+  elseif tab == "fog" then
+    if needMap() then
+      local f = m.fog
+      local fon = f and f.on
+      c = line(0.5)
+      B(fon and "Fog: ON" or "Fog: OFF", "fz_toggle", -W / 4, c, hw, 0.5, on(fon))
+      B(gmSeesFog and "GM vê: ON" or "GM vê: OFF", "fz_gm", W / 4, c, hw, 0.5, on(gmSeesFog), INK,
+        "Mostra o fog também para o mestre")
+      c = line(0.5)
+      B("Cobrir tudo", "fz_cover", -W / 4, c, hw, 0.5)
+      B("Revelar tudo", "fz_clear", W / 4, c, hw, 0.5)
+      gap(0.1)
+      section("Pincel")
+      local reveal = brush and brush.open
+      local hide = brush and not brush.open
+      c = line(0.5)
+      B(reveal and "Revelando..." or "Revelar", "fz_reveal", -W / 4, c, hw, 0.5, reveal and GREEN or BTN, INK,
+        "Liga/desliga: revela o fog por onde o mouse passa")
+      B(hide and "Escondendo..." or "Esconder", "fz_hide", W / 4, c, hw, 0.5, hide and RED or BTN, INK,
+        "Liga/desliga: cobre de novo por onde o mouse passa")
+      c = line(0.5)
+      B("Raio -", "fz_rless", cx[1], c, cw, 0.5)
+      L("Raio " .. brushRadius, cx[2], c, 0.4)
+      B("Raio +", "fz_rmore", cx[3], c, cw, 0.5)
+      c = line(0.5)
+      B("Célula -", "fz_cless", cx[1], c, cw, 0.5)
+      L("Célula " .. (f and f.cell or 2), cx[2], c, 0.4)
+      B("Célula +", "fz_cmore", cx[3], c, cw, 0.5)
+      gap(0.1)
+      L("Dica: Options > Game Keys > Fog", 0, line(0.3), 0.28, MUTED)
+    end
+
+  elseif tab == "area" then
+    c = line(0.5)
+    B("Detectar auto", "b_auto", -W / 4, c, hw, 0.5, BTN, INK, "Detecta a área customizável pela própria mesa")
+    B(calibCorner1 and "Canto 2..." or "Calibrar", "b_calib", W / 4, c, hw, 0.5, on(calibCorner1 ~= nil), INK,
+      "Manual: clique e mire o mouse no canto da área em 3s")
+    c = line(0.5)
+    B("Ver área", "b_area", -W / 4, c, hw, 0.5)
+    B("Fixar selecionados", "b_fixo", W / 4, c, hw, 0.5, BTN, INK, "Objetos selecionados não trocam junto com o mapa")
+    gap(0.1)
+    L(string.format("%.1f x %.1f%s", D.area.w, D.area.d, D.area.manual and " (manual)" or " (auto)"),
+      0, line(0.3), 0.3, MUTED)
   end
-  if #entries == 0 then L("Nenhum mapa ainda.", 0, listTop - 0.24, 0.4, MUTED) end
-  z = listTop - ROWS * 0.58
-  c = line(0.45)
-  B("<", "b_prev", -W / 3, c, 1.1, 0.45)
-  L(page .. " / " .. pages, 0, c, 0.4, MUTED)
-  B(">", "b_next", W / 3, c, 1.1, 0.45)
-
-  -- Imagem
-  section("IMAGEM")
-  local fit = m and m.fit or ""
-  c = line(0.5)
-  B("Mesa", "f_mesa", cx[1], c, cw, 0.5, on(fit == "mesa"), INK, "Imagem direto na parte customizável da mesa")
-  B("Caber", "f_caber", cx[2], c, cw, 0.5, on(fit == "caber"), INK, "Tile por cima, imagem inteira visível")
-  B("Preencher", "f_preencher", cx[3], c, cw, 0.5, on(fit == "preencher"), INK, "Tile por cima, cobre a área toda")
-  c = line(0.5)
-  B("Zoom -", "a_zout", qx[1], c, qw, 0.5)
-  B("Zoom +", "a_zin", qx[2], c, qw, 0.5)
-  B("Girar", "a_rot", qx[3], c, qw, 0.5)
-  B("Reset", "a_reset", qx[4], c, qw, 0.5)
-  c = line(0.5)
-  B("<", "a_left", qx[1], c, qw, 0.5)
-  B("^", "a_up", qx[2], c, qw, 0.5)
-  B("v", "a_down", qx[3], c, qw, 0.5)
-  B(">", "a_right", qx[4], c, qw, 0.5)
-
-  -- Estado
-  section("ESTADO")
-  c = line(0.5)
-  B("Salvar estado", "b_save", -W / 4, c, hw, 0.5, GREEN, INK, "Guarda a posição de todos os props e tokens em cima do mapa")
-  B("Restaurar", "b_restore", W / 4, c, hw, 0.5, RED, INK, "Volta a mesa para o último estado salvo")
-
-  -- Grade
-  section("GRADE")
-  local g = m and m.grid
-  local gon = g and g.on
-  local snap = not (g and g.snap == false)
-  c = line(0.5)
-  B(gon and "Grade: ON" or "Grade: OFF", "g_toggle", qx[1], c, qw, 0.5, on(gon))
-  B("Tam -", "g_less", qx[2], c, qw, 0.5)
-  B("Tam +  (" .. (g and g.size or 1) .. ")", "g_more", qx[3], c, qw, 0.5)
-  B(snap and "Snap: ON" or "Snap: OFF", "g_snap", qx[4], c, qw, 0.5, on(snap), INK, "Peças encaixam no centro dos quadrados")
-  c = line(0.4)
-  B("<", "g_left", qx[1], c, qw, 0.4, BTN_SOFT, INK, "Desloca a grade para alinhar com o mapa")
-  B("^", "g_up", qx[2], c, qw, 0.4, BTN_SOFT)
-  B("v", "g_down", qx[3], c, qw, 0.4, BTN_SOFT)
-  B(">", "g_right", qx[4], c, qw, 0.4, BTN_SOFT)
-
-  -- Área
-  section("ÁREA")
-  c = line(0.45)
-  B("Auto", "b_auto", qx[1], c, qw, 0.45, BTN, INK, "Detecta a área customizável pela própria mesa")
-  B(calibCorner1 and "Canto 2" or "Calibrar", "b_calib", qx[2], c, qw, 0.45, on(calibCorner1 ~= nil), INK,
-    "Manual: clique e mire o mouse no canto da área em 3s")
-  B("Ver área", "b_area", qx[3], c, qw, 0.45)
-  B("Fixar", "b_fixo", qx[4], c, qw, 0.45, BTN, INK, "Objetos selecionados não trocam junto com o mapa")
-
-  -- Fog of war
-  section("FOG OF WAR")
-  local f = m and m.fog
-  local fon = f and f.on
-  c = line(0.5)
-  B(fon and "Fog: ON" or "Fog: OFF", "fz_toggle", qx[1], c, qw, 0.5, on(fon))
-  B("Cobrir tudo", "fz_cover", qx[2], c, qw, 0.5)
-  B("Revelar tudo", "fz_clear", qx[3], c, qw, 0.5)
-  B(gmSeesFog and "GM vê: ON" or "GM vê: OFF", "fz_gm", qx[4], c, qw, 0.5, on(gmSeesFog), INK,
-    "Mostra o fog também para o mestre")
-  local reveal = brush and brush.open
-  local hide = brush and not brush.open
-  c = line(0.5)
-  B(reveal and "Revelando..." or "Pincel revelar", "fz_reveal", qx[1], c, qw, 0.5, reveal and GREEN or BTN, INK,
-    "Liga/desliga: revela o fog por onde o mouse passa")
-  B(hide and "Escondendo..." or "Pincel esconder", "fz_hide", qx[2], c, qw, 0.5, hide and RED or BTN, INK,
-    "Liga/desliga: cobre de novo por onde o mouse passa")
-  B("Raio -", "fz_rless", qx[3], c, qw, 0.5)
-  B("Raio +  (" .. brushRadius .. ")", "fz_rmore", qx[4], c, qw, 0.5)
-  c = line(0.4)
-  B("Célula -", "fz_cless", qx[1], c, qw, 0.4, BTN_SOFT)
-  B("Célula +  (" .. (f and f.cell or 2) .. ")", "fz_cmore", qx[2], c, qw, 0.4, BTN_SOFT)
-  B("Madeira", "b_skin", qx[3], c, qw, 0.4, BTN_SOFT, INK,
-    "Selecione o Custom Tile com a textura de madeira e clique aqui")
-  B("Girar madeira", "b_skinrot", qx[4], c, qw, 0.4, BTN_SOFT, INK, "Gira a textura 180°")
 end
