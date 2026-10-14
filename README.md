@@ -23,3 +23,11 @@ Troca de mapas no centro da mesa do Tabletop Simulator, com props e tokens salvo
 - **Salvar estado / Restaurar:** guarda a posição de props e tokens sobre o mapa e volta para ela depois (Restaurar pede 2 cliques). Mapas com estado salvo mostram `*`.
 - **Grade:** grade nativa do TTS por mapa, com tamanho, snap e deslocamento para alinhar com o desenho do mapa.
 - **Pastas:** digite um nome e clique em "+ Nova pasta"; mapas criados com a pasta aberta entram nela; "Mover atual p/ cá" move o mapa ativo. Botão direito 2x apaga a pasta (os mapas voltam para a raiz).
+
+## Fog of war
+- **Fog: ON/OFF** liga o fog no mapa ativo (cada mapa guarda o seu, inclusive o que já foi revelado).
+- O fog é um "teto" preto em células acima do mapa: os jogadores veem preto, o mestre vê o mapa normal. **GM vê** mostra o fog também para o mestre.
+- **Pincel revelar / Pincel esconder:** liga o pincel; o que estiver sob o mouse é revelado/coberto. Clique de novo para desligar. **Raio -/+** muda o tamanho.
+- **Atalhos (recomendado):** Options > Game Keys > "Fog: revelar (segure)" e "Fog: esconder (segure)". Segure a tecla e passe o mouse.
+- **Cobrir tudo / Revelar tudo**, e **Célula -/+** para mudar a resolução (refaz a cobertura).
+- Olhando a mesa bem de lado dá para espiar por baixo do teto; jogadores devem usar a visão de cima.
