@@ -795,6 +795,12 @@ end
 function fitBoard()
   local co = self.getCustomObject()
   local textured = co and co.image and co.image ~= ""
+  -- A lateral do Custom Tile é branca; com espessura mínima ela praticamente some.
+  if textured and (co.thickness or 0) > 0.11 then
+    self.setCustomObject({ image = co.image, type = co.type, thickness = 0.1, stretch = co.stretch })
+    self.reload()
+    return
+  end
   local s = self.getScale()
   local b = self.getBoundsNormalized().size
   if b.x > 0 and b.z > 0 then
@@ -822,7 +828,8 @@ local MUTED = { 0.80, 0.70, 0.52 }
 
 function place(x, z)
   local s = self.getScale()
-  local top = (self.getBoundsNormalized().size.y / 2 + 0.02) / s.y
+  -- Altura inteira (não a metade): o pivô do Custom Tile fica na base, não no centro como no bloco.
+  local top = (self.getBoundsNormalized().size.y + 0.05) / s.y
   return { x / s.x, top, z / s.z }, { 1 / s.x, 1 / s.y, 1 / s.z }
 end
 
