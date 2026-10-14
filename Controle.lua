@@ -18,7 +18,8 @@ pendingDelete = nil
 calibCorner1 = nil
 
 local U = 450          -- unidades de botão por unidade do mundo (ajuste se os botões ficarem grandes/pequenos)
-local BOARD = { w = 8, d = 13.5 }
+local BOARD = { w = 8, d = 15.5 }
+local LAYOUT_SHIFT = 1.0   -- desloca o layout para cima, abrindo espaço para a seção de Fog
 local ROWS = 7
 local GRID_STEP = 0.25
 local MOVE_STEP = 0.5
@@ -45,7 +46,10 @@ function onLoad(saved)
     self.setScale({ BOARD.w, 0.2, BOARD.d })
   end
   if not D.area.manual then autoArea() end
-  Wait.frames(build, 3)
+  addHotkey("Fog: revelar (segure)", function(color, obj, pos, up) hotkeyBrush(color, up, true) end, true)
+  addHotkey("Fog: esconder (segure)", function(color, obj, pos, up) hotkeyBrush(color, up, false) end, true)
+  -- As peças de fog ficam no save da mesa; recria a partir dos dados para não duplicar.
+  Wait.frames(function() buildFog(); build() end, 3)
 end
 
 -- Fração da mesa ocupada pela parte customizável (a área "amarela"), por tipo de mesa.
@@ -119,7 +123,7 @@ end
 function storeObjects(keep)
   local a, list = D.area, {}
   for _, o in ipairs(getObjects()) do
-    if o ~= self and not o.hasTag("MapaTile") and not o.hasTag("Fixo") then
+    if o ~= self and not o.hasTag("MapaTile") and not o.hasTag("Fixo") and not o.hasTag("Fog") then
       local p = o.getPosition()
       if inArea(p) then
         table.insert(list, { json = o.getJSON(), dx = p.x - a.x, y = p.y, dz = p.z - a.z })
@@ -198,6 +202,8 @@ function switchTo(i)
   local m = D.maps[i]
   showMap(m)
   applyGrid()
+  stopBrush()
+  buildFog()
   Wait.frames(function()
     spawnStored(m.objects)
     m.objects = {}
@@ -216,6 +222,8 @@ function deleteMap(i, color)
   if i == D.current then
     storeObjects()
     removeTile()
+    stopBrush()
+    clearFog()
     D.current = nil
   elseif D.current and i < D.current then
     D.current = D.current - 1
@@ -303,6 +311,7 @@ function b_auto(o, color)
   say(color, string.format("Área detectada pela mesa: %.2f x %.2f", D.area.w, D.area.d))
   showArea()
   applyGrid()
+  buildFog()
   local m = current()
   if m and m.fit ~= "mesa" then showMap(m) end
 end
@@ -537,6 +546,7 @@ function b_calib(o, color)
       say(color, string.format("Área calibrada: %.2f x %.2f", D.area.w, D.area.d))
       showArea()
       applyGrid()
+      buildFog()
       local m = current()
       if m and m.fit ~= "mesa" then showMap(m) end
     end
@@ -545,6 +555,226 @@ function b_calib(o, color)
 end
 
 function b_area() showArea() end
+
+--------------------------------------------------------------------------
+-- Fog of war
+-- A área é dividida em células; cada célula coberta é um "teto" preto flutuando acima do mapa,
+-- invisível para o mestre e não-interativo (não atrapalha mover as peças por baixo).
+--------------------------------------------------------------------------
+local FOG_HEIGHT = 6       -- altura do teto de fog acima da mesa
+local FOG_COLOR = { 0.04, 0.04, 0.06 }
+
+fogTiles = {}   -- chave "i:j" -> objeto
+brush = nil     -- { color, open, waitId }
+brushRadius = 1.5
+gmSeesFog = false
+
+function fogOf(m)
+  m = m or current()
+  if not m then return nil end
+  m.fog = m.fog or { on = false, cell = 2, open = {} }
+  m.fog.open = m.fog.open or {}
+  return m.fog
+end
+
+-- Dimensões da grade de fog para a área atual.
+function fogGrid(f)
+  local a = D.area
+  local nx = math.max(1, math.ceil(a.w / f.cell))
+  local nz = math.max(1, math.ceil(a.d / f.cell))
+  return nx, nz, a.w / nx, a.d / nz
+end
+
+function cellCenter(i, j, cw, cd)
+  local a = D.area
+  return a.x - a.w / 2 + (i - 0.5) * cw, a.z - a.d / 2 + (j - 0.5) * cd
+end
+
+-- Cores que não devem ver o fog: o mestre (host/admins sentados), a não ser que "GM vê" esteja ligado.
+function fogHiddenFrom()
+  if gmSeesFog then return {} end
+  local list = {}
+  for _, p in ipairs(Player.getPlayers()) do
+    if (p.admin or p.host) and p.color ~= "Grey" then table.insert(list, p.color) end
+  end
+  return list
+end
+
+function clearFog()
+  for _, o in ipairs(getObjectsWithTag("Fog")) do o.destruct() end
+  fogTiles = {}
+end
+
+function spawnFogCell(i, j, cw, cd)
+  local key = i .. ":" .. j
+  if fogTiles[key] then return end
+  local x, z = cellCenter(i, j, cw, cd)
+  local hidden = fogHiddenFrom()
+  fogTiles[key] = spawnObject({
+    type = "BlockSquare",
+    position = { x, D.area.y + FOG_HEIGHT, z },
+    scale = { cw * 1.02, 0.15, cd * 1.02 },
+    sound = false,
+    callback_function = function(o)
+      o.setLock(true)
+      o.interactable = false
+      o.addTag("Fog")
+      o.setName("")
+      o.setColorTint(FOG_COLOR)
+      o.setInvisibleTo(hidden)
+    end,
+  })
+end
+
+function buildFog()
+  clearFog()
+  local m = current()
+  local f = m and m.fog
+  if not (f and f.on) then return end
+  local nx, nz, cw, cd = fogGrid(f)
+  for i = 1, nx do
+    for j = 1, nz do
+      if not f.open[i .. ":" .. j] then spawnFogCell(i, j, cw, cd) end
+    end
+  end
+end
+
+function refreshFogVisibility()
+  local hidden = fogHiddenFrom()
+  for _, o in ipairs(getObjectsWithTag("Fog")) do o.setInvisibleTo(hidden) end
+end
+
+function onPlayerChangeColor() refreshFogVisibility() end
+function onPlayerConnect() Wait.frames(refreshFogVisibility, 5) end
+
+-- Revela (open = true) ou cobre (open = false) as células num círculo em volta de pos.
+function paintFog(pos, open)
+  local f = fogOf()
+  if not (f and f.on and pos) then return end
+  local nx, nz, cw, cd = fogGrid(f)
+  local reach = brushRadius + math.max(cw, cd) / 2
+  for i = 1, nx do
+    for j = 1, nz do
+      local x, z = cellCenter(i, j, cw, cd)
+      local dx, dz = x - pos.x, z - pos.z
+      if dx * dx + dz * dz <= reach * reach then
+        local key = i .. ":" .. j
+        if open then
+          if not f.open[key] then
+            f.open[key] = true
+            if fogTiles[key] then fogTiles[key].destruct() end
+            fogTiles[key] = nil
+          end
+        elseif f.open[key] then
+          f.open[key] = nil
+          spawnFogCell(i, j, cw, cd)
+        end
+      end
+    end
+  end
+end
+
+function startBrush(color, open)
+  stopBrush()
+  local id = Wait.time(function()
+    local p = Player[color]
+    if p and p.seated then paintFog(p.getPointerPosition(), open) end
+  end, 0.1, -1)
+  brush = { color = color, open = open, waitId = id }
+end
+
+function stopBrush()
+  if brush then Wait.stop(brush.waitId) end
+  brush = nil
+end
+
+function hotkeyBrush(color, up, open)
+  local p = Player[color]
+  if not (p and (p.admin or p.host)) then return end
+  if up then
+    stopBrush()
+    build()
+  else
+    if not (fogOf() and fogOf().on) then return say(color, "Ligue o Fog primeiro.") end
+    startBrush(color, open)
+  end
+end
+
+function fz_toggle(o, c)
+  if not isAdmin(c) then return end
+  local f = fogOf()
+  if not f then return say(c, "Nenhum mapa ativo.") end
+  f.on = not f.on
+  if not f.on then stopBrush() end
+  buildFog()
+  build()
+end
+
+function fz_cover(o, c)
+  if not isAdmin(c) then return end
+  local f = fogOf()
+  if not f then return end
+  f.on = true
+  f.open = {}
+  buildFog()
+  build()
+end
+
+function fz_clear(o, c)
+  if not isAdmin(c) then return end
+  local f = fogOf()
+  if not f then return end
+  local nx, nz = fogGrid(f)
+  for i = 1, nx do for j = 1, nz do f.open[i .. ":" .. j] = true end end
+  buildFog()
+  build()
+end
+
+function fz_gm(o, c)
+  if not isAdmin(c) then return end
+  gmSeesFog = not gmSeesFog
+  refreshFogVisibility()
+  build()
+end
+
+function brushButton(c, open)
+  if not isAdmin(c) then return end
+  local f = fogOf()
+  if not (f and f.on) then return say(c, "Ligue o Fog primeiro.") end
+  if brush and brush.open == open then
+    stopBrush()
+  else
+    startBrush(c, open)
+    say(c, open and "Pincel REVELAR ligado: passe o mouse sobre o mapa. Clique de novo para desligar."
+      or "Pincel ESCONDER ligado: passe o mouse sobre o mapa. Clique de novo para desligar.")
+  end
+  build()
+end
+function fz_reveal(o, c) brushButton(c, true) end
+function fz_hide(o, c) brushButton(c, false) end
+
+function fz_rless(o, c) if isAdmin(c) then brushRadius = math.max(0.5, brushRadius - 0.5); build() end end
+function fz_rmore(o, c) if isAdmin(c) then brushRadius = brushRadius + 0.5; build() end end
+
+-- Mudar o tamanho da célula refaz a grade de fog, então tudo volta a ficar coberto.
+function cellChange(c, delta)
+  if not isAdmin(c) then return end
+  local f = fogOf()
+  if not f then return end
+  local new = math.max(0.5, f.cell + delta)
+  if new == f.cell then return end
+  if next(f.open) and pendingDelete ~= "cell" then
+    pendingDelete = "cell"
+    return say(c, "Mudar a célula cobre o mapa todo de novo. Clique outra vez para confirmar.")
+  end
+  pendingDelete = nil
+  f.cell = new
+  f.open = {}
+  buildFog()
+  build()
+end
+function fz_cless(o, c) cellChange(c, -0.5) end
+function fz_cmore(o, c) cellChange(c, 0.5) end
 
 function b_fixo(o, color)
   if not isAdmin(color) then return end
@@ -572,7 +802,7 @@ local WHITE = { 1, 1, 1 }
 function place(x, z)
   local s = self.getScale()
   local top = (self.getBoundsNormalized().size.y / 2 + 0.02) / s.y
-  return { x / s.x, top, z / s.z }, { 1 / s.x, 1 / s.y, 1 / s.z }
+  return { x / s.x, top, (z + LAYOUT_SHIFT) / s.z }, { 1 / s.x, 1 / s.y, 1 / s.z }
 end
 
 function B(text, fn, x, z, w, h, color, fontColor, tip)
@@ -688,4 +918,25 @@ function build()
   B("Ver área", "b_area", qx[3], -5.7, qw, 0.45)
   B("Fixar", "b_fixo", qx[4], -5.7, qw, 0.45, GREY, WHITE,
     "Objetos selecionados não trocam junto com o mapa")
+
+  -- Fog of war
+  local f = m and m.fog
+  local fon = f and f.on
+  local RED = { 0.45, 0.16, 0.16 }
+  B(fon and "Fog: ON" or "Fog: OFF", "fz_toggle", qx[1], -6.4, qw, 0.5, fon and BLUE or GREY)
+  B("Cobrir tudo", "fz_cover", qx[2], -6.4, qw, 0.5)
+  B("Revelar tudo", "fz_clear", qx[3], -6.4, qw, 0.5)
+  B(gmSeesFog and "GM vê: ON" or "GM vê: OFF", "fz_gm", qx[4], -6.4, qw, 0.5, gmSeesFog and BLUE or GREY, WHITE,
+    "Mostra o fog também para o mestre")
+  local reveal = brush and brush.open
+  local hide = brush and not brush.open
+  B(reveal and "Revelando..." or "Pincel revelar", "fz_reveal", qx[1], -7.0, qw, 0.5, reveal and GREEN or GREY, WHITE,
+    "Liga/desliga: revela o fog por onde o mouse passa")
+  B(hide and "Escondendo..." or "Pincel esconder", "fz_hide", qx[2], -7.0, qw, 0.5, hide and RED or GREY, WHITE,
+    "Liga/desliga: cobre de novo por onde o mouse passa")
+  B("Raio -", "fz_rless", qx[3], -7.0, qw, 0.5)
+  B("Raio +  (" .. brushRadius .. ")", "fz_rmore", qx[4], -7.0, qw, 0.5)
+  B("Célula -", "fz_cless", qx[1], -7.55, qw, 0.4)
+  B("Célula +  (" .. (f and f.cell or 2) .. ")", "fz_cmore", qx[2], -7.55, qw, 0.4)
+  L("Atalhos: Options > Game Keys > Fog", W / 4, -7.55, 0.3, { 0.6, 0.6, 0.6 })
 end
