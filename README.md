@@ -4,10 +4,9 @@ Troca de mapas no centro da mesa do Tabletop Simulator, com props e tokens salvo
 
 ## Instalação
 1. Se você colou a versão antiga no script Global, apague esse código (Modding > Scripting > Global) e clique em Save & Play.
-2. **Placa de madeira (recomendado):** Objects > Components > Custom > **Tile**. Em Image, escolha o arquivo `assets/tabula.png` deste repositório (aceite subir para a Cloud), deixe **Stretch desmarcado** e clique em Import.
-   - Sem textura também funciona: use Objects > Blocks > Square (fica um bloco cor de madeira).
-3. Clique direito na placa > Scripting > Scripting Editor, cole `Controle.lua` e clique em Save & Play.
-4. A placa se redimensiona sozinha e vira o painel "Controle de Mapas". Se ficar de cabeça para baixo, gire-a 180°.
+2. Objects > Blocks > **Square**. Clique direito no bloco > Scripting > Scripting Editor, cole `Controle.lua` e clique em Save & Play. O bloco vira a placa "Controle de Mapas".
+3. **Madeira (opcional):** Objects > Components > Custom > **Tile**, escolha o arquivo `assets/tabula.png` em Image (aceite subir para a Cloud) e clique em Import. Selecione esse tile e clique em **Madeira** na placa: a textura é colada em cima do bloco. Se a plaqueta do título ficar no lado errado, clique em **Girar madeira**.
+4. Se o painel ficar de cabeça para baixo, gire o bloco 180°.
 
 Para mudar a textura, edite e rode `tools/gerar_tabula.py` (precisa de `pillow` e `numpy`).
 

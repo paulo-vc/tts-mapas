@@ -792,25 +792,69 @@ end
 -- Aparência: placa de madeira
 --------------------------------------------------------------------------
 -- Ajusta a escala para a placa ter BOARD.w x BOARD.d no mundo, seja um bloco ou um Custom Tile com a textura.
+-- O script fica sempre num bloco (onde os botões se posicionam de forma confiável).
+-- A textura de madeira é um Custom Tile "colado" em cima do bloco como attachment.
+local BOARD_THICK = 0.2
+
 function fitBoard()
-  local co = self.getCustomObject()
-  local textured = co and co.image and co.image ~= ""
-  -- A lateral do Custom Tile é branca; com espessura mínima ela praticamente some.
-  if textured and (co.thickness or 0) > 0.11 then
-    self.setCustomObject({ image = co.image, type = co.type, thickness = 0.1, stretch = co.stretch })
-    self.reload()
-    return
-  end
   local s = self.getScale()
-  local b = self.getBoundsNormalized().size
-  if b.x > 0 and b.z > 0 then
-    local sx, sz = BOARD.w / (b.x / s.x), BOARD.d / (b.z / s.z)
-    if math.abs(sx - s.x) > 0.01 or math.abs(sz - s.z) > 0.01 then
-      self.setScale({ sx, textured and s.y or 0.2, sz })
+  if math.abs(s.x - BOARD.w) > 0.01 or math.abs(s.z - BOARD.d) > 0.01 or math.abs(s.y - BOARD_THICK) > 0.01 then
+    self.setScale({ BOARD.w, BOARD_THICK, BOARD.d })
+  end
+  self.setColorTint({ 0.30, 0.18, 0.09 })
+  if D.skin and #self.getAttachments() == 0 then applySkin() end
+end
+
+-- Madeira: selecione o Custom Tile com a textura (assets/tabula.png) e clique em "Madeira".
+function b_skin(o, color)
+  if not isAdmin(color) then return end
+  for _, obj in ipairs(Player[color].getSelectedObjects()) do
+    local co = obj.getCustomObject()
+    if obj ~= self and co and co.image and co.image ~= "" then
+      D.skin = co.image
+      obj.destruct()
+      applySkin()
+      return say(color, "Madeira aplicada. Se a plaqueta ficar embaixo, clique em \"Girar madeira\".")
     end
   end
-  -- Sem textura (bloco comum): pelo menos fica com cor de madeira.
-  if not textured then self.setColorTint({ 0.36, 0.22, 0.12 }) end
+  say(color, "Selecione o tile com a textura de madeira (Custom Tile) e clique de novo.")
+end
+
+function b_skinrot(o, color)
+  if not isAdmin(color) then return end
+  if not D.skin then return say(color, "Aplique a madeira primeiro.") end
+  D.skinRot = ((D.skinRot or 0) + 180) % 360
+  applySkin()
+end
+
+function applySkin()
+  for _, a in ipairs(self.removeAttachments()) do a.destruct() end
+  local p, r = self.getPosition(), self.getRotation()
+  local tile = spawnObject({
+    type = "Custom_Tile",
+    position = { p.x, p.y + 3, p.z },
+    rotation = { r.x, r.y + (D.skinRot or 0), r.z },
+  })
+  tile.setCustomObject({ image = D.skin, type = 0, thickness = 0.1, stretch = true })
+  -- Espera o tile carregar, ajusta o tamanho, encosta no topo do bloco e cola.
+  Wait.condition(function()
+    local s = tile.getScale()
+    local b = tile.getBoundsNormalized().size
+    tile.setScale({ s.x * BOARD.w / b.x, s.y, s.z * BOARD.d / b.z })
+    Wait.frames(function()
+      local tb = tile.getBounds()
+      local top = self.getPosition().y + BOARD_THICK / 2
+      local bp = self.getPosition()
+      tile.setPosition({ bp.x, top + tb.size.y / 2 + 0.005, bp.z })
+      tile.setRotation({ r.x, r.y + (D.skinRot or 0), r.z })
+      Wait.frames(function()
+        self.addAttachment(tile)
+        Wait.frames(build, 3)
+      end, 3)
+    end, 3)
+  end, function()
+    return not tile.spawning and tile.getBoundsNormalized().size.x > 0
+  end, 20)
 end
 
 --------------------------------------------------------------------------
@@ -826,30 +870,12 @@ local INK = { 0.97, 0.91, 0.76 }
 local GOLD = { 0.98, 0.80, 0.40 }
 local MUTED = { 0.80, 0.70, 0.52 }
 
--- Quantas unidades do mundo vale 1 unidade local em cada eixo, medido no próprio objeto
--- (o Custom Tile não converte como o bloco, então não dá para usar só a escala).
-function localUnit(axis)
-  local o = self.positionToWorld({ 0, 0, 0 })
-  local v = { 0, 0, 0 }
-  v[axis] = 1
-  local p = self.positionToWorld(v)
-  local dx, dy, dz = p.x - o.x, p.y - o.y, p.z - o.z
-  return math.sqrt(dx * dx + dy * dy + dz * dz)
-end
-
--- No Custom Tile a imagem fica "de ponta-cabeça" em relação ao eixo local, então espelhamos o layout
--- e giramos os botões 180° para o topo do painel coincidir com a plaqueta da textura.
-function isTextured()
-  local co = self.getCustomObject()
-  return co and co.image and co.image ~= ""
-end
-
+-- Posições no bloco: unidade local = unidade do mundo / escala (o bloco tem 1x1x1 em escala 1).
+-- Os botões ficam um pouco acima do topo para não sumirem embaixo da madeira.
 function place(x, z)
   local s = self.getScale()
-  local kx, ky, kz = localUnit(1), localUnit(2), localUnit(3)
-  local top = (self.getBoundsNormalized().size.y + 0.05) / ky
-  local flip = isTextured() and -1 or 1
-  return { flip * x / kx, top, flip * z / kz }, { 1 / s.x, 1 / s.y, 1 / s.z }, { 0, flip == -1 and 180 or 0, 0 }
+  local top = 0.5 + 0.12 / s.y
+  return { x / s.x, top, z / s.z }, { 1 / s.x, 1 / s.y, 1 / s.z }, { 0, 0, 0 }
 end
 
 function B(text, fn, x, z, w, h, color, fontColor, tip)
@@ -1014,5 +1040,7 @@ function build()
   c = line(0.4)
   B("Célula -", "fz_cless", qx[1], c, qw, 0.4, BTN_SOFT)
   B("Célula +  (" .. (f and f.cell or 2) .. ")", "fz_cmore", qx[2], c, qw, 0.4, BTN_SOFT)
-  L("Atalhos: Options > Game Keys", W / 4, c, 0.3, MUTED)
+  B("Madeira", "b_skin", qx[3], c, qw, 0.4, BTN_SOFT, INK,
+    "Selecione o Custom Tile com a textura de madeira e clique aqui")
+  B("Girar madeira", "b_skinrot", qx[4], c, qw, 0.4, BTN_SOFT, INK, "Gira a textura 180°")
 end
