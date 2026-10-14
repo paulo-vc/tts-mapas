@@ -18,8 +18,7 @@ pendingDelete = nil
 calibCorner1 = nil
 
 local U = 450          -- unidades de botão por unidade do mundo (ajuste se os botões ficarem grandes/pequenos)
-local BOARD = { w = 8, d = 15.5 }
-local LAYOUT_SHIFT = 1.0   -- desloca o layout para cima, abrindo espaço para a seção de Fog
+local BOARD = { w = 8, d = 16.5 }   -- mesma proporção de assets/tabula.png
 local ROWS = 7
 local GRID_STEP = 0.25
 local MOVE_STEP = 0.5
@@ -37,19 +36,16 @@ function onLoad(saved)
   self.setName("Controle de Mapas")
   self.addTag("Fixo")
   D.folders = D.folders or {}
-  if not D.sized then
-    self.setColorTint({ 0.12, 0.12, 0.12 })
-    D.sized = true
-  end
-  local s = self.getScale()
-  if math.abs(s.x - BOARD.w) > 0.01 or math.abs(s.z - BOARD.d) > 0.01 then
-    self.setScale({ BOARD.w, 0.2, BOARD.d })
-  end
   if not D.area.manual then autoArea() end
   addHotkey("Fog: revelar (segure)", function(color, obj, pos, up) hotkeyBrush(color, up, true) end, true)
   addHotkey("Fog: esconder (segure)", function(color, obj, pos, up) hotkeyBrush(color, up, false) end, true)
   -- As peças de fog ficam no save da mesa; recria a partir dos dados para não duplicar.
-  Wait.frames(function() buildFog(); build() end, 3)
+  Wait.frames(function()
+    fitBoard()
+    buildFog()
+    -- espera a nova escala valer antes de posicionar os botões
+    Wait.frames(build, 3)
+  end, 3)
 end
 
 -- Fração da mesa ocupada pela parte customizável (a área "amarela"), por tipo de mesa.
@@ -791,18 +787,43 @@ function b_fixo(o, color)
   end
 end
 
+
+--------------------------------------------------------------------------
+-- Aparência: placa de madeira
+--------------------------------------------------------------------------
+-- Ajusta a escala para a placa ter BOARD.w x BOARD.d no mundo, seja um bloco ou um Custom Tile com a textura.
+function fitBoard()
+  local co = self.getCustomObject()
+  local textured = co and co.image and co.image ~= ""
+  local s = self.getScale()
+  local b = self.getBoundsNormalized().size
+  if b.x > 0 and b.z > 0 then
+    local sx, sz = BOARD.w / (b.x / s.x), BOARD.d / (b.z / s.z)
+    if math.abs(sx - s.x) > 0.01 or math.abs(sz - s.z) > 0.01 then
+      self.setScale({ sx, textured and s.y or 0.2, sz })
+    end
+  end
+  -- Sem textura (bloco comum): pelo menos fica com cor de madeira.
+  if not textured then self.setColorTint({ 0.36, 0.22, 0.12 }) end
+end
+
 --------------------------------------------------------------------------
 -- Layout (coordenadas em unidades do mundo, a partir do centro do painel; +z = topo)
 --------------------------------------------------------------------------
-local GREY = { 0.25, 0.25, 0.25 }
-local GREEN = { 0.18, 0.42, 0.23 }
-local BLUE = { 0.18, 0.31, 0.42 }
-local WHITE = { 1, 1, 1 }
+local BTN = { 0.20, 0.12, 0.06, 0.93 }
+local BTN_SOFT = { 0.29, 0.18, 0.09, 0.93 }
+local BRASS = { 0.62, 0.45, 0.16, 0.97 }
+local GREEN = { 0.27, 0.37, 0.16, 0.95 }
+local RED = { 0.47, 0.16, 0.11, 0.95 }
+local FOLDER = { 0.42, 0.29, 0.12, 0.95 }
+local INK = { 0.97, 0.91, 0.76 }
+local GOLD = { 0.98, 0.80, 0.40 }
+local MUTED = { 0.80, 0.70, 0.52 }
 
 function place(x, z)
   local s = self.getScale()
   local top = (self.getBoundsNormalized().size.y / 2 + 0.02) / s.y
-  return { x / s.x, top, (z + LAYOUT_SHIFT) / s.z }, { 1 / s.x, 1 / s.y, 1 / s.z }
+  return { x / s.x, top, z / s.z }, { 1 / s.x, 1 / s.y, 1 / s.z }
 end
 
 function B(text, fn, x, z, w, h, color, fontColor, tip)
@@ -811,13 +832,14 @@ function B(text, fn, x, z, w, h, color, fontColor, tip)
     label = text, click_function = fn, function_owner = self,
     position = pos, scale = sc,
     width = w * U, height = h * U, font_size = math.floor(h * U * 0.45),
-    color = color or GREY, font_color = fontColor or WHITE,
+    color = color or BTN, font_color = fontColor or INK,
+    hover_color = { 0.55, 0.38, 0.16 }, press_color = { 0.75, 0.55, 0.2 },
     tooltip = tip or "",
   })
 end
 
 function L(text, x, z, h, fontColor)
-  B(text, "noop", x, z, 0, h, { 0, 0, 0, 0 }, fontColor)
+  B(text, "noop", x, z, 0, h, { 0, 0, 0, 0 }, fontColor or INK)
 end
 
 function I(fn, placeholder, value, x, z, w, h)
@@ -826,6 +848,7 @@ function I(fn, placeholder, value, x, z, w, h)
     input_function = fn, function_owner = self, label = placeholder, value = value,
     position = pos, scale = sc, alignment = 2,
     width = w * U, height = h * U, font_size = math.floor(h * U * 0.4),
+    color = { 0.93, 0.86, 0.70 }, font_color = { 0.20, 0.12, 0.06 },
   })
 end
 
@@ -833,110 +856,137 @@ function build()
   self.clearButtons()
   self.clearInputs()
   local m = current()
-  local W = BOARD.w - 0.6
+  local W = BOARD.w - 1.2
   local hw = W / 2 - 0.05
-  local qw = W / 4 - 0.1
+  local qw = W / 4 - 0.08
   local qx = { -W * 3 / 8, -W / 8, W / 8, W * 3 / 8 }
-  local cw = W / 3 - 0.1
+  local cw = W / 3 - 0.08
+  local cx = { -W / 3, 0, W / 3 }
 
-  L("MAPAS" .. (D.openFolder and ("  /  " .. D.openFolder) or ""), 0, 6.2, 0.55, { 1, 0.82, 0.5 })
-  I("in_name", "Nome (mapa ou pasta)", newName, 0, 5.5, W, 0.5)
-  I("in_url", "Link da imagem (.jpg / .png)", newUrl, 0, 4.85, W, 0.5)
-  B("+ Adicionar link", "b_add", -W / 4, 4.2, hw - 0.05, 0.5, GREEN)
-  B("+ Custom (arquivo)", "b_custom", W / 4, 4.2, hw - 0.05, 0.5, GREEN, WHITE,
-    "Escolher uma imagem do seu PC e subir para a Cloud")
-  B("+ Nova pasta", "b_newfolder", -W / 4, 3.55, hw - 0.05, 0.5, BLUE, WHITE,
-    "Cria uma pasta com o nome digitado")
-  B("Mover atual p/ cá", "b_move", W / 4, 3.55, hw - 0.05, 0.5, BLUE, WHITE,
-    "Move o mapa ativo para a pasta aberta (ou para a raiz)")
+  -- Cursor vertical: cada linha ocupa sua altura + um respiro.
+  local z = BOARD.d / 2 - 0.5
+  local function line(h)
+    local c = z - h / 2
+    z = z - h - 0.1
+    return c
+  end
+  local function section(title)
+    L("-  " .. title .. "  -", 0, line(0.3), 0.3, GOLD)
+  end
+  local function on(flag) return flag and BRASS or BTN end
+
+  -- Cabeçalho (cai sobre a placa escura da textura)
+  local c = line(0.6)
+  L(D.openFolder and ("MAPAS  /  " .. D.openFolder) or "MAPAS", 0, c, 0.55, GOLD)
+
+  c = line(0.5); I("in_name", "Nome (mapa ou pasta)", newName, 0, c, W, 0.5)
+  c = line(0.5); I("in_url", "Link da imagem (.jpg / .png)", newUrl, 0, c, W, 0.5)
+  c = line(0.5)
+  B("+ Adicionar link", "b_add", -W / 4, c, hw, 0.5, GREEN)
+  B("+ Arquivo do PC", "b_custom", W / 4, c, hw, 0.5, GREEN, INK, "Escolher uma imagem do seu PC e subir para a Cloud")
+  c = line(0.5)
+  B("+ Nova pasta", "b_newfolder", -W / 4, c, hw, 0.5, FOLDER, INK, "Cria uma pasta com o nome digitado")
+  B("Mover atual p/ cá", "b_move", W / 4, c, hw, 0.5, FOLDER, INK, "Move o mapa ativo para a pasta aberta (ou para a raiz)")
 
   -- Lista
   local entries = getEntries()
   local pages = math.max(1, math.ceil(#entries / ROWS))
   if page > pages then page = pages end
+  local listTop = z
   for n = 1, ROWS do
     local e = entries[(page - 1) * ROWS + n]
+    local rz = listTop - (n - 1) * 0.58 - 0.24
     if e then
-      local z = 2.9 - (n - 1) * 0.58
       if e.kind == "back" then
-        B("<  Voltar", "s" .. n, 0, z, W, 0.48, { 0.32, 0.32, 0.32 })
+        B("<  Voltar", "s" .. n, 0, rz, W, 0.48, BTN_SOFT)
       elseif e.kind == "folder" then
-        B("[ " .. e.name .. " ]  (" .. e.count .. ")", "s" .. n, 0, z, W, 0.48, { 0.42, 0.33, 0.14 }, WHITE,
+        B("[ " .. e.name .. " ]   " .. e.count .. " mapa(s)", "s" .. n, 0, rz, W, 0.48, FOLDER, INK,
           "Clique: abrir   |   Botão direito 2x: apagar pasta")
       else
         local mp = D.maps[e.i]
         local sel = (e.i == D.current)
-        B((sel and "> " or "") .. mp.name .. (mp.saved and "  *" or ""), "s" .. n, 0, z, W, 0.48,
-          sel and GREEN or GREY, WHITE, "Clique: carregar   |   Botão direito 2x: apagar   |   * = tem estado salvo")
+        B((sel and ">  " or "") .. mp.name .. (mp.saved and "  *" or ""), "s" .. n, 0, rz, W, 0.48,
+          sel and BRASS or BTN, INK, "Clique: carregar   |   Botão direito 2x: apagar   |   * = tem estado salvo")
       end
     end
   end
-  if #entries == 0 then L("Nenhum mapa ainda.", 0, 2.9, 0.4, { 0.6, 0.6, 0.6 }) end
+  if #entries == 0 then L("Nenhum mapa ainda.", 0, listTop - 0.24, 0.4, MUTED) end
+  z = listTop - ROWS * 0.58
+  c = line(0.45)
+  B("<", "b_prev", -W / 3, c, 1.1, 0.45)
+  L(page .. " / " .. pages, 0, c, 0.4, MUTED)
+  B(">", "b_next", W / 3, c, 1.1, 0.45)
 
-  B("<", "b_prev", -2.5, -1.2, 1.2, 0.45)
-  L(page .. " / " .. pages, 0, -1.2, 0.4)
-  B(">", "b_next", 2.5, -1.2, 1.2, 0.45)
-
-  -- Ajuste da imagem
+  -- Imagem
+  section("IMAGEM")
   local fit = m and m.fit or ""
-  B("Mesa", "f_mesa", -W / 3, -1.85, cw, 0.5, fit == "mesa" and BLUE or GREY)
-  B("Caber", "f_caber", 0, -1.85, cw, 0.5, fit == "caber" and BLUE or GREY)
-  B("Preencher", "f_preencher", W / 3, -1.85, cw, 0.5, fit == "preencher" and BLUE or GREY)
-  B("Zoom -", "a_zout", qx[1], -2.45, qw, 0.5)
-  B("Zoom +", "a_zin", qx[2], -2.45, qw, 0.5)
-  B("Girar", "a_rot", qx[3], -2.45, qw, 0.5)
-  B("Reset", "a_reset", qx[4], -2.45, qw, 0.5)
-  B("<", "a_left", qx[1], -3.05, qw, 0.5)
-  B("^", "a_up", qx[2], -3.05, qw, 0.5)
-  B("v", "a_down", qx[3], -3.05, qw, 0.5)
-  B(">", "a_right", qx[4], -3.05, qw, 0.5)
+  c = line(0.5)
+  B("Mesa", "f_mesa", cx[1], c, cw, 0.5, on(fit == "mesa"), INK, "Imagem direto na parte customizável da mesa")
+  B("Caber", "f_caber", cx[2], c, cw, 0.5, on(fit == "caber"), INK, "Tile por cima, imagem inteira visível")
+  B("Preencher", "f_preencher", cx[3], c, cw, 0.5, on(fit == "preencher"), INK, "Tile por cima, cobre a área toda")
+  c = line(0.5)
+  B("Zoom -", "a_zout", qx[1], c, qw, 0.5)
+  B("Zoom +", "a_zin", qx[2], c, qw, 0.5)
+  B("Girar", "a_rot", qx[3], c, qw, 0.5)
+  B("Reset", "a_reset", qx[4], c, qw, 0.5)
+  c = line(0.5)
+  B("<", "a_left", qx[1], c, qw, 0.5)
+  B("^", "a_up", qx[2], c, qw, 0.5)
+  B("v", "a_down", qx[3], c, qw, 0.5)
+  B(">", "a_right", qx[4], c, qw, 0.5)
 
   -- Estado
-  B("Salvar estado", "b_save", -W / 4, -3.75, hw - 0.05, 0.5, GREEN, WHITE,
-    "Guarda a posição de todos os props e tokens em cima do mapa")
-  B("Restaurar", "b_restore", W / 4, -3.75, hw - 0.05, 0.5, { 0.45, 0.28, 0.12 }, WHITE,
-    "Volta a mesa para o último estado salvo")
+  section("ESTADO")
+  c = line(0.5)
+  B("Salvar estado", "b_save", -W / 4, c, hw, 0.5, GREEN, INK, "Guarda a posição de todos os props e tokens em cima do mapa")
+  B("Restaurar", "b_restore", W / 4, c, hw, 0.5, RED, INK, "Volta a mesa para o último estado salvo")
 
   -- Grade
+  section("GRADE")
   local g = m and m.grid
-  local on = g and g.on
-  B(on and "Grade: ON" or "Grade: OFF", "g_toggle", qx[1], -4.45, qw, 0.5, on and BLUE or GREY)
-  B("Tam -", "g_less", qx[2], -4.45, qw, 0.5)
-  B("Tam +  (" .. (g and g.size or 1) .. ")", "g_more", qx[3], -4.45, qw, 0.5)
-  B((g and g.snap == false) and "Snap: OFF" or "Snap: ON", "g_snap", qx[4], -4.45, qw, 0.5,
-    (g and g.snap ~= false) and BLUE or GREY, WHITE, "Peças encaixam no centro dos quadrados")
-  B("Grade <", "g_left", qx[1], -5.0, qw, 0.4, GREY, WHITE, "Desloca a grade para alinhar com o mapa")
-  B("Grade ^", "g_up", qx[2], -5.0, qw, 0.4)
-  B("Grade v", "g_down", qx[3], -5.0, qw, 0.4)
-  B("Grade >", "g_right", qx[4], -5.0, qw, 0.4)
+  local gon = g and g.on
+  local snap = not (g and g.snap == false)
+  c = line(0.5)
+  B(gon and "Grade: ON" or "Grade: OFF", "g_toggle", qx[1], c, qw, 0.5, on(gon))
+  B("Tam -", "g_less", qx[2], c, qw, 0.5)
+  B("Tam +  (" .. (g and g.size or 1) .. ")", "g_more", qx[3], c, qw, 0.5)
+  B(snap and "Snap: ON" or "Snap: OFF", "g_snap", qx[4], c, qw, 0.5, on(snap), INK, "Peças encaixam no centro dos quadrados")
+  c = line(0.4)
+  B("<", "g_left", qx[1], c, qw, 0.4, BTN_SOFT, INK, "Desloca a grade para alinhar com o mapa")
+  B("^", "g_up", qx[2], c, qw, 0.4, BTN_SOFT)
+  B("v", "g_down", qx[3], c, qw, 0.4, BTN_SOFT)
+  B(">", "g_right", qx[4], c, qw, 0.4, BTN_SOFT)
 
   -- Área
-  B("Área auto", "b_auto", qx[1], -5.7, qw, 0.45, GREY, WHITE,
-    "Detecta a área customizável pela própria mesa")
-  B(calibCorner1 and "Canto 2" or "Calibrar", "b_calib", qx[2], -5.7, qw, 0.45, GREY, WHITE,
+  section("ÁREA")
+  c = line(0.45)
+  B("Auto", "b_auto", qx[1], c, qw, 0.45, BTN, INK, "Detecta a área customizável pela própria mesa")
+  B(calibCorner1 and "Canto 2" or "Calibrar", "b_calib", qx[2], c, qw, 0.45, on(calibCorner1 ~= nil), INK,
     "Manual: clique e mire o mouse no canto da área em 3s")
-  B("Ver área", "b_area", qx[3], -5.7, qw, 0.45)
-  B("Fixar", "b_fixo", qx[4], -5.7, qw, 0.45, GREY, WHITE,
-    "Objetos selecionados não trocam junto com o mapa")
+  B("Ver área", "b_area", qx[3], c, qw, 0.45)
+  B("Fixar", "b_fixo", qx[4], c, qw, 0.45, BTN, INK, "Objetos selecionados não trocam junto com o mapa")
 
   -- Fog of war
+  section("FOG OF WAR")
   local f = m and m.fog
   local fon = f and f.on
-  local RED = { 0.45, 0.16, 0.16 }
-  B(fon and "Fog: ON" or "Fog: OFF", "fz_toggle", qx[1], -6.4, qw, 0.5, fon and BLUE or GREY)
-  B("Cobrir tudo", "fz_cover", qx[2], -6.4, qw, 0.5)
-  B("Revelar tudo", "fz_clear", qx[3], -6.4, qw, 0.5)
-  B(gmSeesFog and "GM vê: ON" or "GM vê: OFF", "fz_gm", qx[4], -6.4, qw, 0.5, gmSeesFog and BLUE or GREY, WHITE,
+  c = line(0.5)
+  B(fon and "Fog: ON" or "Fog: OFF", "fz_toggle", qx[1], c, qw, 0.5, on(fon))
+  B("Cobrir tudo", "fz_cover", qx[2], c, qw, 0.5)
+  B("Revelar tudo", "fz_clear", qx[3], c, qw, 0.5)
+  B(gmSeesFog and "GM vê: ON" or "GM vê: OFF", "fz_gm", qx[4], c, qw, 0.5, on(gmSeesFog), INK,
     "Mostra o fog também para o mestre")
   local reveal = brush and brush.open
   local hide = brush and not brush.open
-  B(reveal and "Revelando..." or "Pincel revelar", "fz_reveal", qx[1], -7.0, qw, 0.5, reveal and GREEN or GREY, WHITE,
+  c = line(0.5)
+  B(reveal and "Revelando..." or "Pincel revelar", "fz_reveal", qx[1], c, qw, 0.5, reveal and GREEN or BTN, INK,
     "Liga/desliga: revela o fog por onde o mouse passa")
-  B(hide and "Escondendo..." or "Pincel esconder", "fz_hide", qx[2], -7.0, qw, 0.5, hide and RED or GREY, WHITE,
+  B(hide and "Escondendo..." or "Pincel esconder", "fz_hide", qx[2], c, qw, 0.5, hide and RED or BTN, INK,
     "Liga/desliga: cobre de novo por onde o mouse passa")
-  B("Raio -", "fz_rless", qx[3], -7.0, qw, 0.5)
-  B("Raio +  (" .. brushRadius .. ")", "fz_rmore", qx[4], -7.0, qw, 0.5)
-  B("Célula -", "fz_cless", qx[1], -7.55, qw, 0.4)
-  B("Célula +  (" .. (f and f.cell or 2) .. ")", "fz_cmore", qx[2], -7.55, qw, 0.4)
-  L("Atalhos: Options > Game Keys > Fog", W / 4, -7.55, 0.3, { 0.6, 0.6, 0.6 })
+  B("Raio -", "fz_rless", qx[3], c, qw, 0.5)
+  B("Raio +  (" .. brushRadius .. ")", "fz_rmore", qx[4], c, qw, 0.5)
+  c = line(0.4)
+  B("Célula -", "fz_cless", qx[1], c, qw, 0.4, BTN_SOFT)
+  B("Célula +  (" .. (f and f.cell or 2) .. ")", "fz_cmore", qx[2], c, qw, 0.4, BTN_SOFT)
+  L("Atalhos: Options > Game Keys", W / 4, c, 0.3, MUTED)
 end
