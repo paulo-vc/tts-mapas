@@ -359,9 +359,13 @@ function showArea()
 end
 
 --------------------------------------------------------------------------
--- Névoa: células de Hidden Zone rentes ao mapa (sem colisão; o dono enxerga através)
+-- Névoa: Hidden Zones rentes ao mapa (sem colisão; o dono enxerga através).
+-- Para não pesar, células cobertas vizinhas na mesma linha viram UMA zona (uma "faixa"),
+-- as zonas são criadas aos poucos (algumas por frame) e só as linhas que mudaram são refeitas.
 --------------------------------------------------------------------------
-fogZones = {}
+fogRows = {}                 -- linha j -> lista de faixas { i0, i1, obj, dead }
+local spawnQueue, pumping = {}, false
+local SPAWN_PER_FRAME = 6
 
 function fogOf(m)
   m = m or current()
@@ -383,38 +387,112 @@ function cellCenter(i, j, cw, cd)
   return a.x - a.w / 2 + (i - 0.5) * cw, a.z - a.d / 2 + (j - 0.5) * cd
 end
 
-function clearFog()
-  for _, o in ipairs(getObjectsWithTag("Fog")) do o.destruct() end
-  fogZones = {}
+-- Faixa de células (i0..i1, j0..j1) que um círculo de raio r em volta de p pode tocar.
+function cellRange(p, r, nx, nz, cw, cd)
+  local a = D.area
+  local x0, z0 = a.x - a.w / 2, a.z - a.d / 2
+  local i0 = math.max(1, math.floor((p.x - r - x0) / cw) + 1)
+  local i1 = math.min(nx, math.floor((p.x + r - x0) / cw) + 1)
+  local j0 = math.max(1, math.floor((p.z - r - z0) / cd) + 1)
+  local j1 = math.min(nz, math.floor((p.z + r - z0) / cd) + 1)
+  return i0, i1, j0, j1
 end
 
-function spawnFogCell(f, i, j, cw, cd)
-  local key = i .. ":" .. j
-  if fogZones[key] then return end
-  local x, z = cellCenter(i, j, cw, cd)
-  fogZones[key] = spawnObject({
-    type = "FogOfWar",
-    position = { x, D.area.y + FOG_HEIGHT / 2 - 0.05, z },
-    scale = { cw, FOG_HEIGHT, cd },
-    sound = false,
-    callback_function = function(o)
-      o.setValue(f.owner or "Black")
-      o.addTag("Fog")
-    end,
-  })
+function pumpSpawns()
+  local n = 0
+  while #spawnQueue > 0 and n < SPAWN_PER_FRAME do
+    local r = table.remove(spawnQueue, 1)
+    if not r.dead then
+      r.obj = spawnObject({
+        type = "FogOfWar", position = r.pos, scale = r.scale, sound = false,
+        callback_function = function(o)
+          o.setValue(r.owner)
+          o.addTag("Fog")
+        end,
+      })
+      n = n + 1
+    end
+  end
+  if #spawnQueue > 0 then Wait.frames(pumpSpawns, 1) else pumping = false end
+end
+
+function enqueue(r)
+  table.insert(spawnQueue, r)
+  if not pumping then
+    pumping = true
+    Wait.frames(pumpSpawns, 1)
+  end
+end
+
+function killRun(r)
+  r.dead = true
+  if r.obj then r.obj.destruct() end
+  r.obj = nil
+end
+
+function clearFog()
+  for _, runs in pairs(fogRows) do
+    for _, r in ipairs(runs) do killRun(r) end
+  end
+  for _, r in ipairs(spawnQueue) do r.dead = true end
+  spawnQueue = {}
+  fogRows = {}
+  for _, o in ipairs(getObjectsWithTag("Fog")) do o.destruct() end
+end
+
+function isCovered(f, key)
+  return not f.open[key] and not (S.seen and S.seen[key])
+end
+
+-- Refaz só o que mudou numa linha: mantém as faixas iguais, apaga as que sumiram, cria as novas.
+function syncRow(f, j, nx, cw, cd)
+  local want, i = {}, 1
+  while i <= nx do
+    if isCovered(f, i .. ":" .. j) then
+      local i0 = i
+      while i <= nx and isCovered(f, i .. ":" .. j) do i = i + 1 end
+      table.insert(want, { i0, i - 1 })
+    else
+      i = i + 1
+    end
+  end
+  local byKey = {}
+  for _, r in ipairs(fogRows[j] or {}) do byKey[r.i0 .. "," .. r.i1] = r end
+  local a, rows = D.area, {}
+  for _, w in ipairs(want) do
+    local k = w[1] .. "," .. w[2]
+    local r = byKey[k]
+    if r then
+      byKey[k] = nil
+    else
+      local width = (w[2] - w[1] + 1) * cw
+      local x = a.x - a.w / 2 + (w[1] - 1) * cw + width / 2
+      local _, z = cellCenter(1, j, cw, cd)
+      r = {
+        i0 = w[1], i1 = w[2], owner = f.owner or "Black",
+        pos = { x, a.y + FOG_HEIGHT / 2 - 0.05, z },
+        scale = { width, FOG_HEIGHT, cd },
+      }
+      enqueue(r)
+    end
+    table.insert(rows, r)
+  end
+  for _, r in pairs(byKey) do killRun(r) end
+  fogRows[j] = rows
+end
+
+function syncRows(f, dirty)
+  local nx, _, cw, cd = fogGrid(f)
+  for j in pairs(dirty) do syncRow(f, j, nx, cw, cd) end
 end
 
 function buildFog()
   clearFog()
-  S.seen = {}
+  S.seen, S.poses, S.coneSig = {}, {}, nil
   local f = current() and current().fog
   if not (f and f.on) then return end
   local nx, nz, cw, cd = fogGrid(f)
-  for i = 1, nx do
-    for j = 1, nz do
-      if not f.open[i .. ":" .. j] then spawnFogCell(f, i, j, cw, cd) end
-    end
-  end
+  for j = 1, nz do syncRow(f, j, nx, cw, cd) end
 end
 
 function paintFog(pos, open, radius)
@@ -422,23 +500,25 @@ function paintFog(pos, open, radius)
   if not (f and f.on and pos) then return end
   local nx, nz, cw, cd = fogGrid(f)
   local reach = (radius or S.brushRadius) + math.max(cw, cd) / 2
-  for i = 1, nx do
-    for j = 1, nz do
+  local i0, i1, j0, j1 = cellRange(pos, reach, nx, nz, cw, cd)
+  local dirty = {}
+  for i = i0, i1 do
+    for j = j0, j1 do
       local x, z = cellCenter(i, j, cw, cd)
       local dx, dz = x - pos.x, z - pos.z
       if dx * dx + dz * dz <= reach * reach then
         local key = i .. ":" .. j
         if open and not f.open[key] then
           f.open[key] = true
-          if fogZones[key] then fogZones[key].destruct() end
-          fogZones[key] = nil
+          dirty[j] = true
         elseif not open and f.open[key] then
           f.open[key] = nil
-          spawnFogCell(f, i, j, cw, cd)
+          dirty[j] = true
         end
       end
     end
   end
+  if next(dirty) then syncRows(f, dirty) end
 end
 
 --------------------------------------------------------------------------
@@ -460,6 +540,12 @@ end
 
 function setVision(o, t) o.memo = JSON.encode(t) end
 
+-- "Pose" arredondada do token: se não mudou desde a última vez, não há nada a recalcular.
+function poseOf(o)
+  local p, r = o.getPosition(), o.getRotation()
+  return string.format("%.1f|%.1f|%d|%s", p.x, p.z, math.floor(r.y / 5), o.memo or "")
+end
+
 -- Células que um token com visão enxerga agora: um cone à frente + um círculo pequeno em volta.
 function coneCells(o, v, f, set)
   local nx, nz, cw, cd = fogGrid(f)
@@ -473,8 +559,9 @@ function coneCells(o, v, f, set)
   fx, fz = fx / len, fz / len
   local cosHalf = math.cos(math.rad(v.angle / 2))
   local near = math.max(cw, cd) * 0.75
-  for i = 1, nx do
-    for j = 1, nz do
+  local i0, i1, j0, j1 = cellRange(p, v.range + math.max(cw, cd), nx, nz, cw, cd)
+  for i = i0, i1 do
+    for j = j0, j1 do
       local x, z = cellCenter(i, j, cw, cd)
       local dx, dz = x - p.x, z - p.z
       local dist = math.sqrt(dx * dx + dz * dz)
@@ -489,35 +576,52 @@ function visionTick()
   local m = current()
   local f = m and m.fog
   if not (f and f.on) then return end
+  S.poses = S.poses or {}
 
+  -- Reveladores: só pintam quando se mexem (e não enquanto estão na mão de alguém).
   for _, o in ipairs(getObjectsWithTag(TAG_REVEAL)) do
     local p = o.getPosition()
-    if inArea(p) and not o.held_by_color then paintFog(p, true, visionOf(o).radius) end
+    if inArea(p) and not o.held_by_color then
+      local pose = poseOf(o)
+      if S.poses[o.getGUID()] ~= pose then
+        S.poses[o.getGUID()] = pose
+        paintFog(p, true, visionOf(o).radius)
+      end
+    end
   end
 
   if not f.survival then return end
-  local nx, nz, cw, cd = fogGrid(f)
-  local visible = {}
+
+  -- Cones: só recalcula se algum token com visão mexeu, girou ou mudou de ajuste.
+  local cones, sig = {}, {}
   for _, o in ipairs(getObjectsWithTag(TAG_CONE)) do
-    if inArea(o.getPosition()) then coneCells(o, visionOf(o), f, visible) end
+    if inArea(o.getPosition()) then
+      table.insert(cones, o)
+      table.insert(sig, o.getGUID() .. "=" .. poseOf(o))
+    end
   end
+  table.sort(sig)
+  sig = table.concat(sig, ";")
+  if sig == S.coneSig then return end
+  S.coneSig = sig
+
+  local visible = {}
+  for _, o in ipairs(cones) do coneCells(o, visionOf(o), f, visible) end
+  local dirty = {}
   S.seen = S.seen or {}
   for key in pairs(visible) do
     if not f.open[key] and not S.seen[key] then
       S.seen[key] = true
-      if fogZones[key] then fogZones[key].destruct() end
-      fogZones[key] = nil
+      dirty[tonumber(key:match(":(%d+)"))] = true
     end
   end
   for key in pairs(S.seen) do
     if not visible[key] then
       S.seen[key] = nil
-      if not f.open[key] then
-        local i, j = key:match("(%d+):(%d+)")
-        spawnFogCell(f, tonumber(i), tonumber(j), cw, cd)
-      end
+      dirty[tonumber(key:match(":(%d+)"))] = true
     end
   end
+  if next(dirty) then syncRows(f, dirty) end
 end
 
 -- Aplica uma mudança em todos os objetos selecionados (exceto o próprio Atlas).
