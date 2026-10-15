@@ -554,7 +554,7 @@ function buildFog(reset)
   clearFog()
   local a = D.area
   spawnObject({
-    type = "Fog",
+    type = "FogOfWar",   -- nome interno da zona de Fog of War (o "Fog" da lista é só o nome exibido)
     position = { a.x, a.y + FOG_ZONE_HEIGHT / 2 - 0.1, a.z },
     scale = { a.w, FOG_ZONE_HEIGHT, a.d },
     sound = false,
