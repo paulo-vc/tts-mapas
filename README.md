@@ -20,6 +20,9 @@ Sem o modelo também funciona: cole `Atlas.lua` num bloco (Objects > Blocks > Sq
 - **Névoa:** células de Hidden Zone rentes ao mapa. O mestre enxerga através; os jogadores veem um bloco opaco e não veem os tokens escondidos. Pincel de revelar/cobrir, raio e tamanho da célula.
   - Atalhos: Options > Game Keys > "Atlas: revelar névoa" / "Atlas: cobrir névoa". Segure e passe o mouse.
   - A névoa tem a cor do mestre que a ligou; sente-se no **Black** para névoa preta.
+  - **Revelador:** selecione um token/prop e clique em *Revelador*; ele limpa a névoa por onde passa (permanente). Evita que alguém limpe a névoa sem querer com o mouse.
+  - **Modo sobrevivência:** marque tokens com *Visão em cone* e ligue *Sobrevivência*. Eles só enxergam um cone à frente (mais um círculo pequeno em volta); a névoa volta quando o cone sai. *Alcance*, *Ângulo* e *Girar cone* ajustam os tokens selecionados.
+  - A visão aberta vale para todos os jogadores (Hidden Zones não mudam por jogador).
 - **Área:** detecção automática pela mesa, calibração manual (mire nos cantos), mostrar área, fixar objetos.
 
 ## Modelo
