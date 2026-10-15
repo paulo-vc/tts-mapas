@@ -201,6 +201,8 @@ local EN = {
   ["Revelador criado no centro do mapa. Arraste para onde quiser."] = "Revealer created in the middle of the map. Drag it anywhere.",
   ["O que sai da visão dos reveladores volta a ficar escondido"] = "Anything that leaves the revealers' sight is hidden again",
   ["Modo sobrevivência"] = "Survival mode",
+  ["Névoa criada: %.1f x %.1f"] = "Fog created: %.1f x %.1f",
+  ["O TTS não criou a zona de névoa."] = "TTS did not create the fog zone.",
 }
 
 function tr(s)
@@ -574,13 +576,35 @@ function buildFog(mode)
   if mode == "reset" then f.revealed = {} end
   clearFog()
   local a = D.area
-  spawnObjectData({
+  local py = a.y + FOG_ZONE_HEIGHT / 2 - 0.1
+  -- Posição e tamanho vão no próprio Transform (é com ele que a zona nasce);
+  -- os demais campos seguem o spawner de névoa do OneWorld.
+  local zone = spawnObjectData({
     data = {
       Name = "FogOfWar",
-      Transform = { posX = 0, posY = 0, posZ = 0, rotX = 0, rotY = 0, rotZ = 0, scaleX = 1, scaleY = 1, scaleZ = 1 },
+      Transform = {
+        posX = a.x, posY = py, posZ = a.z,
+        rotX = 0, rotY = 0, rotZ = 0,
+        scaleX = a.w, scaleY = FOG_ZONE_HEIGHT, scaleZ = a.d,
+      },
       Nickname = tr("Névoa"),
+      Description = "",
+      GMNotes = "",
+      ColorDiffuse = { r = 0.25, g = 0.25, b = 0.25, a = 0.1025644 },
+      LayoutGroupSortIndex = 0,
+      Value = 0,
       Locked = true,
-      Tags = { TAG_ZONE },
+      Grid = true,
+      Snap = true,
+      IgnoreFoW = false,
+      MeasureMovement = false,
+      DragSelectable = true,
+      Autoraise = true,
+      Sticky = true,
+      Tooltip = true,
+      GridProjection = false,
+      HideWhenFaceDown = false,
+      Hands = false,
       FogOfWar = {
         HideGmPointer = false,
         HideObjects = true,
@@ -588,15 +612,21 @@ function buildFog(mode)
         Height = 0,
         RevealedLocations = f.revealed or {},
       },
+      LuaScript = "",
+      LuaScriptState = "",
+      XmlUI = "",
     },
-    position = { a.x, a.y + FOG_ZONE_HEIGHT / 2 - 0.1, a.z },
-    rotation = { 0, 0, 0 },
-    scale = { a.w, FOG_ZONE_HEIGHT, a.d },
+    position = { x = a.x, y = py, z = a.z },
+    rotation = { x = 0, y = 0, z = 0 },
+    scale = { x = a.w, y = FOG_ZONE_HEIGHT, z = a.d },
     sound = false,
     callback_function = function(o)
-      if not o.hasTag(TAG_ZONE) then o.addTag(TAG_ZONE) end
+      o.addTag(TAG_ZONE)
+      local b = o.getBounds().size
+      say(nil, string.format(tr("Névoa criada: %.1f x %.1f"), b.x, b.z))
     end,
   })
+  if not zone then say(nil, tr("O TTS não criou a zona de névoa.")) end
 end
 
 -- Configuração do revelador guardada no próprio objeto (memo), para mostrar no painel.
