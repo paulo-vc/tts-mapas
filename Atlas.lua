@@ -576,7 +576,9 @@ function buildFog(mode)
   if mode == "reset" then f.revealed = {} end
   clearFog()
   local a = D.area
-  local py = a.y + FOG_ZONE_HEIGHT / 2 - 0.1
+  -- A base da zona fica logo ACIMA do pano: o plano preto (Height = 0) é desenhado na base;
+  -- abaixo da superfície ele some embaixo da mesa.
+  local py = a.y + 0.03 + FOG_ZONE_HEIGHT / 2
   -- Posição e tamanho vão no próprio Transform (é com ele que a zona nasce);
   -- os demais campos seguem o spawner de névoa do OneWorld.
   local zone = spawnObjectData({
