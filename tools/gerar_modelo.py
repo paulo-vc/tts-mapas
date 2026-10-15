@@ -5,7 +5,7 @@ Uso: python tools/gerar_modelo.py   (precisa de pillow e numpy)
 O modelo é feito em unidades do TTS, para ser usado em escala 1:
   - tampo de pergaminho 9 x 11.8, com o topo em y = 0.30 (onde ficam os botões)
   - moldura de madeira em volta, cantoneiras de latão, pés
-  - um mapa enrolado com ponteiras de latão na borda de cima (+z)
+  - um mapa enrolado com ponteiras de latão na borda de cima (-z, que é o topo do painel no TTS)
 Os valores precisam bater com BOARD em Atlas.lua.
 """
 import math
@@ -108,7 +108,7 @@ def build_mesh():
             x, z = sx * (ow - f / 2 - 0.15), sz * (od - f / 2 - 0.15)
             m.box(x - f / 2, x + f / 2, -0.14, 0.0, z - f / 2, z + f / 2, DARK)
     # Mapa enrolado na borda de cima, com ponteiras de latão
-    sz = od + 0.32
+    sz = -(od + 0.32)
     m.cylinder_x(-hw + 0.3, hw - 0.3, 0.30, sz, 0.30, PARCH)
     m.cylinder_x(-hw + 0.05, -hw + 0.3, 0.30, sz, 0.36, BRASS)
     m.cylinder_x(hw - 0.3, hw - 0.05, 0.30, sz, 0.36, BRASS)

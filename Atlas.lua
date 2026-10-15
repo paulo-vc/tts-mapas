@@ -779,11 +779,13 @@ local MOSS = { 0.31, 0.36, 0.18 }
 local BRICK = { 0.55, 0.24, 0.14 }
 local CLEAR = { 0, 0, 0, 0 }
 
--- Coordenadas em unidades do mundo a partir do centro do tampo; +z = lado do mapa enrolado.
+-- Coordenadas em unidades do mundo a partir do centro do tampo; z positivo = topo do painel.
+-- No TTS o "para cima" do texto dos botões aponta para o -z local, então o z é invertido aqui
+-- (e o mapa enrolado do modelo fica no -z).
 function place(x, z)
   local s = self.getScale()
   local top = isModel() and (MODEL_TOP + 0.02) / s.y or (0.5 + 0.02 / s.y)
-  return { x / s.x, top, z / s.z }, { 1 / s.x, 1 / s.y, 1 / s.z }
+  return { x / s.x, top, -z / s.z }, { 1 / s.x, 1 / s.y, 1 / s.z }
 end
 
 function B(label, fn, x, z, w, h, color, textColor, tip)
@@ -802,7 +804,7 @@ function T(label, x, z, h, color)
   local pos, sc = place(x, z)
   self.createButton({
     label = label, click_function = "noop", function_owner = self,
-    position = pos, scale = sc, width = 0, height = 0,
+    position = pos, scale = sc, width = 0, height = math.floor(h * U),
     font_size = math.floor(h * U * 0.62), font_color = color or INK, color = CLEAR,
   })
 end
