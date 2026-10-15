@@ -23,7 +23,7 @@ D = {
 -- Estado só da sessão
 S = {
   tab = "mapas", page = 1, newName = "", newUrl = "",
-  pending = nil, calib = nil, brush = nil, brushRadius = 1.5, showingArea = false,
+  pending = nil, calib = nil, showingArea = false,
 }
 
 local ROWS = 8
@@ -183,6 +183,22 @@ local EN = {
   ["Fixar selecionados"] = "Pin selected",
   ["Objetos fixos não trocam com o mapa"] = "Pinned objects don't change with the map",
   ["Idioma"] = "Language",
+  ["Resetar névoa"] = "Reset fog",
+  ["Cobre o mapa todo de novo"] = "Covers the whole map again",
+  ["Sente no Black para ver tudo (mestre)."] = "Sit as Black to see everything (GM).",
+  ["Reveladores (selecione e clique)"] = "Revealers (select, then click)",
+  ["Criar revelador"] = "Create revealer",
+  ["Cria uma peça que revela a névoa em volta dela"] = "Creates a piece that reveals the fog around it",
+  ["Marcar revelador"] = "Make revealer",
+  ["Os objetos selecionados passam a revelar a névoa"] = "Selected objects start revealing the fog",
+  ["Tira a revelação dos objetos selecionados"] = "Stops the selected objects from revealing",
+  ["Alcance "] = "Range ",
+  ["360° = círculo; menos = cone de visão"] = "360° = circle; less = vision cone",
+  ["Girar visão 90"] = "Turn view 90",
+  ["Dicas"] = "Tips",
+  ["Clique direito no revelador > Reveal Fog of War: alcance e cor."] = "Right-click a revealer > Reveal Fog of War: range and color.",
+  ["Modo sobrevivência: clique na névoa > ReHide Objects."] = "Survival mode: click the fog > ReHide Objects.",
+  ["Revelador criado no centro do mapa. Arraste para onde quiser."] = "Revealer created in the middle of the map. Drag it anywhere.",
 }
 
 function tr(s)
@@ -211,15 +227,12 @@ function onLoad(saved)
     self.setColorTint({ 0.36, 0.23, 0.12 })
   end
 
-  addHotkey(tr("Atlas: revelar névoa (segure)"), function(color, _, _, up) hotkeyBrush(color, up, true) end, true)
-  addHotkey(tr("Atlas: cobrir névoa (segure)"), function(color, _, _, up) hotkeyBrush(color, up, false) end, true)
 
   Wait.frames(function()
     if not D.area.manual then autoArea() end
     applyGrid()
     buildFog()
     build()
-    Wait.time(visionTick, 0.25, -1)
   end, 10)
 end
 
@@ -268,7 +281,7 @@ function inArea(p)
 end
 
 function isOurs(o)
-  return o == self or o.hasTag("MapaTile") or o.hasTag("Fog") or o.hasTag("Fixo") or o.hasTag("AtlasMesa")
+  return o == self or o.hasTag("MapaTile") or o.hasTag("Fog") or o.hasTag("AtlasNevoa") or o.hasTag("Fixo") or o.hasTag("AtlasMesa")
 end
 
 --------------------------------------------------------------------------
@@ -305,7 +318,7 @@ function afterAreaChange()
   showArea()
   local m = current()
   if m and m.fit ~= "mesa" then showMap(m) else applyGrid() end
-  buildFog()
+  buildFog(true)
 end
 
 --------------------------------------------------------------------------
@@ -405,11 +418,10 @@ end
 function switchTo(i)
   local old = current()
   if old then old.objects = storeObjects() end
-  stopBrush()
   D.current = i
   local m = D.maps[i]
   showMap(m)
-  buildFog()
+  buildFog(true)
   Wait.frames(function()
     spawnStored(m.objects)
     m.objects = {}
@@ -508,269 +520,70 @@ function showArea()
 end
 
 --------------------------------------------------------------------------
--- Névoa: Hidden Zones rentes ao mapa (sem colisão; o dono enxerga através).
--- Para não pesar, células cobertas vizinhas na mesma linha viram UMA zona (uma "faixa"),
--- as zonas são criadas aos poucos (algumas por frame) e só as linhas que mudaram são refeitas.
+-- Névoa: Fog of War nativo do TTS — uma zona cobrindo a área do mapa.
+-- Reveladores abrem círculos lisos (o motor do TTS cuida disso, sem travar);
+-- o mestre sentado no Black enxerga tudo; props bloqueiam a linha de visão.
+-- Ajustes da zona (ReHide Objects, Fog Height, Reset) ficam no clique esquerdo na névoa;
+-- os de cada revelador (alcance, cor) no clique direito > Reveal Fog of War.
 --------------------------------------------------------------------------
-fogRows = {}                 -- linha j -> lista de faixas { i0, i1, obj, dead }
-local spawnQueue, pumping = {}, false
-local SPAWN_PER_FRAME = 6
+local TAG_ZONE, TAG_REVEAL = "AtlasNevoa", "AtlasRevelador"
+local FOG_ZONE_HEIGHT = 6
+local DEFAULT_VISION = { range = 5, angle = 360, rot = 0 }
 
 function fogOf(m)
   m = m or current()
   if not m then return nil end
-  m.fog = m.fog or { on = false, cell = 2, open = {}, owner = "Black" }
-  m.fog.open = m.fog.open or {}
+  m.fog = m.fog or { on = false }
   return m.fog
 end
 
-function fogGrid(f)
-  local a = D.area
-  local nx = math.max(1, math.ceil(a.w / f.cell))
-  local nz = math.max(1, math.ceil(a.d / f.cell))
-  return nx, nz, a.w / nx, a.d / nz
-end
-
-function cellCenter(i, j, cw, cd)
-  local a = D.area
-  return a.x - a.w / 2 + (i - 0.5) * cw, a.z - a.d / 2 + (j - 0.5) * cd
-end
-
--- Faixa de células (i0..i1, j0..j1) que um círculo de raio r em volta de p pode tocar.
-function cellRange(p, r, nx, nz, cw, cd)
-  local a = D.area
-  local x0, z0 = a.x - a.w / 2, a.z - a.d / 2
-  local i0 = math.max(1, math.floor((p.x - r - x0) / cw) + 1)
-  local i1 = math.min(nx, math.floor((p.x + r - x0) / cw) + 1)
-  local j0 = math.max(1, math.floor((p.z - r - z0) / cd) + 1)
-  local j1 = math.min(nz, math.floor((p.z + r - z0) / cd) + 1)
-  return i0, i1, j0, j1
-end
-
-function pumpSpawns()
-  local n = 0
-  while #spawnQueue > 0 and n < SPAWN_PER_FRAME do
-    local r = table.remove(spawnQueue, 1)
-    if not r.dead then
-      r.obj = spawnObject({
-        type = "FogOfWar", position = r.pos, scale = r.scale, sound = false,
-        callback_function = function(o)
-          o.setValue(r.owner)
-          o.addTag("Fog")
-        end,
-      })
-      n = n + 1
-    end
-  end
-  if #spawnQueue > 0 then Wait.frames(pumpSpawns, 1) else pumping = false end
-end
-
-function enqueue(r)
-  table.insert(spawnQueue, r)
-  if not pumping then
-    pumping = true
-    Wait.frames(pumpSpawns, 1)
-  end
-end
-
-function killRun(r)
-  r.dead = true
-  if r.obj then r.obj.destruct() end
-  r.obj = nil
-end
+function fogZone() return getObjectsWithTag(TAG_ZONE)[1] end
 
 function clearFog()
-  for _, runs in pairs(fogRows) do
-    for _, r in ipairs(runs) do killRun(r) end
-  end
-  for _, r in ipairs(spawnQueue) do r.dead = true end
-  spawnQueue = {}
-  fogRows = {}
+  for _, o in ipairs(getObjectsWithTag(TAG_ZONE)) do o.destruct() end
+  -- zonas da versão antiga (Hidden Zones em células)
   for _, o in ipairs(getObjectsWithTag("Fog")) do o.destruct() end
 end
 
-function isCovered(f, key)
-  return not f.open[key] and not (S.seen and S.seen[key])
-end
-
--- Refaz só o que mudou numa linha: mantém as faixas iguais, apaga as que sumiram, cria as novas.
-function syncRow(f, j, nx, cw, cd)
-  local want, i = {}, 1
-  while i <= nx do
-    if isCovered(f, i .. ":" .. j) then
-      local i0 = i
-      while i <= nx and isCovered(f, i .. ":" .. j) do i = i + 1 end
-      table.insert(want, { i0, i - 1 })
-    else
-      i = i + 1
-    end
-  end
-  local byKey = {}
-  for _, r in ipairs(fogRows[j] or {}) do byKey[r.i0 .. "," .. r.i1] = r end
-  local a, rows = D.area, {}
-  for _, w in ipairs(want) do
-    local k = w[1] .. "," .. w[2]
-    local r = byKey[k]
-    if r then
-      byKey[k] = nil
-    else
-      local width = (w[2] - w[1] + 1) * cw
-      local x = a.x - a.w / 2 + (w[1] - 1) * cw + width / 2
-      local _, z = cellCenter(1, j, cw, cd)
-      r = {
-        i0 = w[1], i1 = w[2], owner = f.owner or "Black",
-        pos = { x, a.y + FOG_HEIGHT / 2 - 0.05, z },
-        scale = { width, FOG_HEIGHT, cd },
-      }
-      enqueue(r)
-    end
-    table.insert(rows, r)
-  end
-  for _, r in pairs(byKey) do killRun(r) end
-  fogRows[j] = rows
-end
-
-function syncRows(f, dirty)
-  local nx, _, cw, cd = fogGrid(f)
-  for j in pairs(dirty) do syncRow(f, j, nx, cw, cd) end
-end
-
-function buildFog()
-  clearFog()
-  S.seen, S.poses, S.coneSig = {}, {}, nil
+-- Garante a zona de névoa do mapa ativo. reset = true recria do zero (cobre tudo de novo).
+-- Sem reset, uma zona que já existe é mantida, com o que já foi revelado.
+function buildFog(reset)
   local f = current() and current().fog
-  if not (f and f.on) then return end
-  local nx, nz, cw, cd = fogGrid(f)
-  for j = 1, nz do syncRow(f, j, nx, cw, cd) end
+  if not (f and f.on) then return clearFog() end
+  if fogZone() and not reset then return end
+  clearFog()
+  local a = D.area
+  spawnObject({
+    type = "Fog",
+    position = { a.x, a.y + FOG_ZONE_HEIGHT / 2 - 0.1, a.z },
+    scale = { a.w, FOG_ZONE_HEIGHT, a.d },
+    sound = false,
+    callback_function = function(o)
+      o.addTag(TAG_ZONE)
+      o.setName(tr("Névoa"))
+    end,
+  })
 end
 
-function paintFog(pos, open, radius)
-  local f = fogOf()
-  if not (f and f.on and pos) then return end
-  local nx, nz, cw, cd = fogGrid(f)
-  local reach = (radius or S.brushRadius) + math.max(cw, cd) / 2
-  local i0, i1, j0, j1 = cellRange(pos, reach, nx, nz, cw, cd)
-  local dirty = {}
-  for i = i0, i1 do
-    for j = j0, j1 do
-      local x, z = cellCenter(i, j, cw, cd)
-      local dx, dz = x - pos.x, z - pos.z
-      if dx * dx + dz * dz <= reach * reach then
-        local key = i .. ":" .. j
-        if open and not f.open[key] then
-          f.open[key] = true
-          dirty[j] = true
-        elseif not open and f.open[key] then
-          f.open[key] = nil
-          dirty[j] = true
-        end
-      end
-    end
-  end
-  if next(dirty) then syncRows(f, dirty) end
-end
-
---------------------------------------------------------------------------
--- Tokens que mexem na névoa
---   Revelador: limpa a névoa de forma permanente num raio em volta dele.
---   Visão em cone (modo sobrevivência): só enxerga um cone à frente; a névoa volta quando o cone sai.
--- As configurações ficam no próprio objeto (tags + memo), então sobrevivem à troca de mapa.
--- Obs.: Hidden Zones não mudam por jogador, então a visão aberta vale para todos os jogadores.
---------------------------------------------------------------------------
-local TAG_REVEAL, TAG_CONE = "AtlasRevelador", "AtlasVisao"
-local DEFAULT_VISION = { range = 6, angle = 90, rot = 0, radius = 2 }
-
+-- Configuração do revelador guardada no próprio objeto (memo), para mostrar no painel.
 function visionOf(o)
-  local ok, t = pcall(JSON.decode, o.memo or "")
-  t = (ok and type(t) == "table") and t or {}
-  for k, v in pairs(DEFAULT_VISION) do if t[k] == nil then t[k] = v end end
-  return t
+  local ok, v = pcall(JSON.decode, o.memo or "")
+  v = (ok and type(v) == "table") and v or {}
+  for k, d in pairs(DEFAULT_VISION) do if v[k] == nil then v[k] = d end end
+  return v
 end
 
-function setVision(o, t) o.memo = JSON.encode(t) end
-
--- "Pose" arredondada do token: se não mudou desde a última vez, não há nada a recalcular.
-function poseOf(o)
-  local p, r = o.getPosition(), o.getRotation()
-  return string.format("%.1f|%.1f|%d|%s", p.x, p.z, math.floor(r.y / 5), o.memo or "")
+-- Liga a revelação nativa. fov/fov_offset fazem o cone de visão nas versões do TTS que os aceitam;
+-- nas outras são ignorados e o revelador abre um círculo.
+function applyReveal(o, v)
+  o.memo = JSON.encode(v)
+  o.addTag(TAG_REVEAL)
+  o.setFogOfWarReveal({ reveal = true, color = "Black", range = v.range, fov = v.angle, fov_offset = v.rot })
 end
 
--- Células que um token com visão enxerga agora: um cone à frente + um círculo pequeno em volta.
-function coneCells(o, v, f, set)
-  local nx, nz, cw, cd = fogGrid(f)
-  local p = o.getPosition()
-  local fw = o.getTransformForward()
-  local a = math.rad(v.rot or 0)
-  local fx = fw.x * math.cos(a) - fw.z * math.sin(a)
-  local fz = fw.x * math.sin(a) + fw.z * math.cos(a)
-  local len = math.sqrt(fx * fx + fz * fz)
-  if len < 1e-6 then fx, fz, len = 0, 1, 1 end
-  fx, fz = fx / len, fz / len
-  local cosHalf = math.cos(math.rad(v.angle / 2))
-  local near = math.max(cw, cd) * 0.75
-  local i0, i1, j0, j1 = cellRange(p, v.range + math.max(cw, cd), nx, nz, cw, cd)
-  for i = i0, i1 do
-    for j = j0, j1 do
-      local x, z = cellCenter(i, j, cw, cd)
-      local dx, dz = x - p.x, z - p.z
-      local dist = math.sqrt(dx * dx + dz * dz)
-      if dist <= near or (dist <= v.range and (dx * fx + dz * fz) / dist >= cosHalf) then
-        set[i .. ":" .. j] = true
-      end
-    end
-  end
-end
-
-function visionTick()
-  local m = current()
-  local f = m and m.fog
-  if not (f and f.on) then return end
-  S.poses = S.poses or {}
-
-  -- Reveladores: só pintam quando se mexem (e não enquanto estão na mão de alguém).
-  for _, o in ipairs(getObjectsWithTag(TAG_REVEAL)) do
-    local p = o.getPosition()
-    if inArea(p) and not o.held_by_color then
-      local pose = poseOf(o)
-      if S.poses[o.getGUID()] ~= pose then
-        S.poses[o.getGUID()] = pose
-        paintFog(p, true, visionOf(o).radius)
-      end
-    end
-  end
-
-  if not f.survival then return end
-
-  -- Cones: só recalcula se algum token com visão mexeu, girou ou mudou de ajuste.
-  local cones, sig = {}, {}
-  for _, o in ipairs(getObjectsWithTag(TAG_CONE)) do
-    if inArea(o.getPosition()) then
-      table.insert(cones, o)
-      table.insert(sig, o.getGUID() .. "=" .. poseOf(o))
-    end
-  end
-  table.sort(sig)
-  sig = table.concat(sig, ";")
-  if sig == S.coneSig then return end
-  S.coneSig = sig
-
-  local visible = {}
-  for _, o in ipairs(cones) do coneCells(o, visionOf(o), f, visible) end
-  local dirty = {}
-  S.seen = S.seen or {}
-  for key in pairs(visible) do
-    if not f.open[key] and not S.seen[key] then
-      S.seen[key] = true
-      dirty[tonumber(key:match(":(%d+)"))] = true
-    end
-  end
-  for key in pairs(S.seen) do
-    if not visible[key] then
-      S.seen[key] = nil
-      dirty[tonumber(key:match(":(%d+)"))] = true
-    end
-  end
-  if next(dirty) then syncRows(f, dirty) end
+function removeReveal(o)
+  o.removeTag(TAG_REVEAL)
+  o.setFogOfWarReveal({ reveal = false })
 end
 
 -- Aplica uma mudança em todos os objetos selecionados (exceto o próprio Atlas).
@@ -778,7 +591,7 @@ function eachSelected(c, fn)
   local sel = Player[c].getSelectedObjects()
   local n = 0
   for _, o in ipairs(sel) do
-    if o ~= self and not o.hasTag("Fog") and not o.hasTag("MapaTile") then
+    if o ~= self and not o.hasTag("Fog") and not o.hasTag("AtlasNevoa") and not o.hasTag("MapaTile") then
       fn(o)
       n = n + 1
     end
@@ -787,32 +600,8 @@ function eachSelected(c, fn)
   return n
 end
 
-function startBrush(color, open)
-  stopBrush()
-  local id = Wait.time(function()
-    local p = Player[color]
-    if p and p.seated then paintFog(p.getPointerPosition(), open) end
-  end, 0.1, -1)
-  S.brush = { color = color, open = open, waitId = id }
-end
 
-function stopBrush()
-  if S.brush then Wait.stop(S.brush.waitId) end
-  S.brush = nil
-end
 
-function hotkeyBrush(color, up, open)
-  local p = Player[color]
-  if not (p and (p.host or p.admin)) then return end
-  if up then
-    stopBrush()
-    build()
-  elseif fogOf() and fogOf().on then
-    startBrush(color, open)
-  else
-    say(color, tr("Ligue a névoa primeiro (aba Névoa)."))
-  end
-end
 
 --------------------------------------------------------------------------
 -- Ações dos botões — cada botão chama uma função com nome fixo: (obj, cor, clique_direito)
@@ -934,7 +723,6 @@ function row(n, c, del)
       if e.i == D.current then
         storeObjects()
         removeTile()
-        stopBrush()
         clearFog()
         D.current = nil
         applyGrid()
@@ -1032,101 +820,59 @@ function fog(c, k)
   if not isGM(c) then return end
   local f = fogOf()
   if not f then return say(c, tr("Nenhum mapa ativo.")) end
-  if k == "on" then
-    f.on, f.owner = not f.on, c
-    if not f.on then stopBrush() end
-    buildFog()
-  elseif k == "cover" then
-    f.on, f.open, f.owner = true, {}, c
-    buildFog()
-  elseif k == "clear" then
-    local nx, nz = fogGrid(f)
-    for i = 1, nx do for j = 1, nz do f.open[i .. ":" .. j] = true end end
-    buildFog()
-  elseif k == "reveal" or k == "hide" then
-    if not f.on then return say(c, tr("Ligue a névoa primeiro.")) end
-    local open = (k == "reveal")
-    if S.brush and S.brush.open == open then stopBrush() else startBrush(c, open) end
-  elseif k == "rless" then S.brushRadius = math.max(0.5, S.brushRadius - 0.5)
-  elseif k == "rmore" then S.brushRadius = S.brushRadius + 0.5
-  else
-    local new = math.max(0.5, f.cell + (k == "cmore" and 0.5 or -0.5))
-    if next(f.open) and S.pending ~= "cell" then
-      S.pending = "cell"
-      return build()
-    end
-    S.pending = nil
-    f.cell, f.open = new, {}
-    buildFog()
-  end
+  if k == "on" then f.on = not f.on end
+  buildFog(true)
   build()
 end
 function n_on(_, c) fog(c, "on") end
-function n_cover(_, c) fog(c, "cover") end
-function n_clear(_, c) fog(c, "clear") end
-function n_reveal(_, c) fog(c, "reveal") end
-function n_hide(_, c) fog(c, "hide") end
-function n_rless(_, c) fog(c, "rless") end
-function n_rmore(_, c) fog(c, "rmore") end
-function n_cless(_, c) fog(c, "cless") end
-function n_cmore(_, c) fog(c, "cmore") end
+function n_reset(_, c) fog(c, "reset") end
 
--- Tokens da névoa
-function n_surv(_, c)
+-- Reveladores
+function v_spawn(_, c)
   if not isGM(c) then return end
-  local f = fogOf()
-  if not f then return say(c, tr("Nenhum mapa ativo.")) end
-  f.survival = not f.survival
-  buildFog()
+  local a = D.area
+  spawnObject({
+    type = "Chip_10",
+    position = { a.x, a.y + 2, a.z },
+    callback_function = function(o)
+      o.setName(tr("Revelador"))
+      o.setColorTint({ 0.85, 0.65, 0.2 })
+      applyReveal(o, visionOf(o))
+      build()
+    end,
+  })
+  say(c, tr("Revelador criado no centro do mapa. Arraste para onde quiser."))
+end
+
+function v_reveal(_, c)
+  if not isGM(c) then return end
+  eachSelected(c, function(o) applyReveal(o, visionOf(o)) end)
   build()
 end
 
-function markTokens(c, tag, other, label)
+function v_clear(_, c)
+  if not isGM(c) then return end
+  eachSelected(c, removeReveal)
+  build()
+end
+
+-- Ajustes valem para os objetos selecionados que já são reveladores.
+function tune(c, fn)
   if not isGM(c) then return end
   eachSelected(c, function(o)
-    if o.hasTag(tag) then
-      o.removeTag(tag)
-      say(c, (o.getName() ~= "" and o.getName() or o.type) .. tr(": não é mais ") .. label)
-    else
-      o.removeTag(other)
-      o.addTag(tag)
-      setVision(o, visionOf(o))
-      say(c, (o.getName() ~= "" and o.getName() or o.type) .. ": " .. label)
+    if o.hasTag(TAG_REVEAL) then
+      local v = visionOf(o)
+      fn(v)
+      applyReveal(o, v)
+      S.lastVision = v
     end
   end)
   build()
 end
-function v_reveal(_, c) markTokens(c, TAG_REVEAL, TAG_CONE, tr("revelador")) end
-function v_cone(_, c) markTokens(c, TAG_CONE, TAG_REVEAL, tr("visão em cone")) end
-
-function v_clear(_, c)
-  if not isGM(c) then return end
-  eachSelected(c, function(o)
-    o.removeTag(TAG_REVEAL)
-    o.removeTag(TAG_CONE)
-  end)
-  build()
-end
-
--- Ajustes valem para os tokens selecionados (revelador usa o raio; cone usa alcance, ângulo e direção).
-function tune(c, fn)
-  if not isGM(c) then return end
-  local last
-  eachSelected(c, function(o)
-    local v = visionOf(o)
-    fn(v, o.hasTag(TAG_CONE))
-    setVision(o, v)
-    last = v
-  end)
-  S.lastVision = last or S.lastVision
-  build()
-end
-function v_rless(_, c) tune(c, function(v, cone)
-  if cone then v.range = math.max(1, v.range - 1) else v.radius = math.max(0.5, v.radius - 0.5) end end) end
-function v_rmore(_, c) tune(c, function(v, cone)
-  if cone then v.range = v.range + 1 else v.radius = v.radius + 0.5 end end) end
-function v_aless(_, c) tune(c, function(v) v.angle = math.max(20, v.angle - 15) end) end
-function v_amore(_, c) tune(c, function(v) v.angle = math.min(360, v.angle + 15) end) end
+function v_rless(_, c) tune(c, function(v) v.range = math.max(1, v.range - 1) end) end
+function v_rmore(_, c) tune(c, function(v) v.range = v.range + 1 end) end
+function v_aless(_, c) tune(c, function(v) v.angle = math.max(30, v.angle - 30) end) end
+function v_amore(_, c) tune(c, function(v) v.angle = math.min(360, v.angle + 30) end) end
 function v_rot(_, c) tune(c, function(v) v.rot = ((v.rot or 0) + 90) % 360 end) end
 
 -- Área
@@ -1374,54 +1120,35 @@ function build()
     if needMap() then
       local f = m.fog or {}
       c = line(0.55)
-      B(f.on and tr("Névoa: ligada") or tr("Névoa: desligada"), "n_on", 0, c, W, 0.55, on(f.on))
-      T(tr("Você (") .. (f.owner or "Black") .. tr(") enxerga através; os jogadores não."), 0, line(0.3), 0.26, MUTED)
-      c = line(0.5)
-      B(tr("Cobrir tudo"), "n_cover", x2[1], c, half, 0.5)
-      B(tr("Revelar tudo"), "n_clear", x2[2], c, half, 0.5)
+      B(f.on and tr("Névoa: ligada") or tr("Névoa: desligada"), "n_on", x2[1], c, half, 0.55, on(f.on))
+      B(tr("Resetar névoa"), "n_reset", x2[2], c, half, 0.55, LEATHER, PARCH_TXT, tr("Cobre o mapa todo de novo"))
+      T(tr("Sente no Black para ver tudo (mestre)."), 0, line(0.3), 0.26, MUTED)
       gap(0.1)
-      heading(tr("Pincel"))
-      local rev = S.brush and S.brush.open
-      local hid = S.brush and not S.brush.open
-      c = line(0.55)
-      B(rev and tr("Revelando...") or tr("Revelar"), "n_reveal", x2[1], c, half, 0.55, rev and MOSS or LEATHER, PARCH_TXT,
-        tr("Liga/desliga: revela por onde o mouse passa"))
-      B(hid and tr("Cobrindo...") or tr("Cobrir"), "n_hide", x2[2], c, half, 0.55, hid and BRICK or LEATHER, PARCH_TXT,
-        tr("Liga/desliga: cobre por onde o mouse passa"))
-      c = line(0.5)
-      B(tr("Raio -"), "n_rless", x3[1], c, third, 0.5)
-      T(tr("Raio ") .. S.brushRadius, x3[2], c, 0.32, INK)
-      B(tr("Raio +"), "n_rmore", x3[3], c, third, 0.5)
-      c = line(0.5)
-      B(tr("Célula -"), "n_cless", x3[1], c, third, 0.5)
-      T(S.pending == "cell" and tr("Confirmar?") or (tr("Célula ") .. (f.cell or 2)), x3[2], c, 0.32,
-        S.pending == "cell" and WINE_TXT or INK)
-      B(tr("Célula +"), "n_cmore", x3[3], c, third, 0.5)
-      T(tr("Atalhos: Options > Game Keys > Atlas"), 0, line(0.3), 0.26, MUTED)
 
-      heading(tr("Tokens (selecione e clique)"))
+      heading(tr("Reveladores (selecione e clique)"))
+      c = line(0.55)
+      B(tr("Criar revelador"), "v_spawn", 0, c, W, 0.55, MOSS, PARCH_TXT, tr("Cria uma peça que revela a névoa em volta dela"))
       c = line(0.5)
-      B(tr("Revelador"), "v_reveal", x3[1], c, third, 0.5, LEATHER, PARCH_TXT,
-        tr("Limpa a névoa por onde o token passa (permanente)"))
-      B(tr("Visão em cone"), "v_cone", x3[2], c, third, 0.5, LEATHER, PARCH_TXT,
-        tr("Modo sobrevivência: só enxerga à frente do token"))
-      B(tr("Desmarcar"), "v_clear", x3[3], c, third, 0.5, LEATHER_SOFT, PARCH_TXT, tr("Tira o token da névoa"))
+      B(tr("Marcar revelador"), "v_reveal", x2[1], c, half, 0.5, LEATHER, PARCH_TXT,
+        tr("Os objetos selecionados passam a revelar a névoa"))
+      B(tr("Desmarcar"), "v_clear", x2[2], c, half, 0.5, LEATHER_SOFT, PARCH_TXT, tr("Tira a revelação dos objetos selecionados"))
       local v = S.lastVision or DEFAULT_VISION
       c = line(0.5)
-      B(tr("Alcance -"), "v_rless", x3[1], c, third, 0.5, LEATHER, PARCH_TXT, tr("Raio do revelador / alcance do cone"))
-      T(string.format(tr("Raio %.1f  Cone %d"), v.radius, v.range), x3[2], c, 0.28, INK)
-      B(tr("Alcance +"), "v_rmore", x3[3], c, third, 0.5, LEATHER, PARCH_TXT, tr("Raio do revelador / alcance do cone"))
+      B(tr("Alcance -"), "v_rless", x3[1], c, third, 0.5)
+      T(tr("Alcance ") .. v.range, x3[2], c, 0.32, INK)
+      B(tr("Alcance +"), "v_rmore", x3[3], c, third, 0.5)
       c = line(0.5)
-      B(tr("Ângulo -"), "v_aless", x3[1], c, third, 0.5)
-      T(tr("Ângulo ") .. v.angle .. "°", x3[2], c, 0.3, INK)
-      B(tr("Ângulo +"), "v_amore", x3[3], c, third, 0.5)
-      c = line(0.55)
-      B(f.survival and tr("Sobrevivência: ligada") or tr("Sobrevivência: desligada"), "n_surv", x2[1], c, half, 0.55,
-        on(f.survival), PARCH_TXT, tr("Tokens com visão em cone só enxergam à frente; a névoa volta atrás deles"))
-      B(tr("Girar cone 90"), "v_rot", x2[2], c, half, 0.55, LEATHER, PARCH_TXT,
-        tr("Se o cone aponta para o lado errado do token"))
-      T(#getObjectsWithTag(TAG_REVEAL) .. tr(" revelador(es)   ") .. #getObjectsWithTag(TAG_CONE) .. tr(" com visão"),
-        0, line(0.3), 0.26, MUTED)
+      B(tr("Ângulo -"), "v_aless", x3[1], c, third, 0.5, LEATHER, PARCH_TXT, tr("360° = círculo; menos = cone de visão"))
+      T(tr("Ângulo ") .. v.angle .. "°", x3[2], c, 0.32, INK)
+      B(tr("Ângulo +"), "v_amore", x3[3], c, third, 0.5, LEATHER, PARCH_TXT, tr("360° = círculo; menos = cone de visão"))
+      c = line(0.5)
+      B(tr("Girar visão 90"), "v_rot", 0, c, W, 0.5, LEATHER, PARCH_TXT, tr("Se o cone aponta para o lado errado do token"))
+      T(#getObjectsWithTag(TAG_REVEAL) .. tr(" revelador(es)   "), 0, line(0.3), 0.26, MUTED)
+      gap(0.1)
+
+      heading(tr("Dicas"))
+      T(tr("Clique direito no revelador > Reveal Fog of War: alcance e cor."), 0, line(0.28), 0.25, INK)
+      T(tr("Modo sobrevivência: clique na névoa > ReHide Objects."), 0, line(0.28), 0.25, INK)
     end
 
   elseif S.tab == "area" then
