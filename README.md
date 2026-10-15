@@ -20,8 +20,8 @@ Sem o modelo também funciona: cole `Atlas.lua` num bloco (Objects > Blocks > Sq
 - **Névoa:** Fog of War nativo do TTS, uma zona só cobrindo a área do mapa. O mestre sentado no **Black** enxerga tudo; props bloqueiam a linha de visão.
   - **Criar revelador** cria uma peça (ficha dourada) que abre um círculo de visão em volta dela. **Marcar revelador** faz o mesmo com tokens/props selecionados.
   - **Alcance**, **Ângulo** (360° = círculo, menos = cone) e **Girar visão** ajustam os reveladores selecionados. Também dá para ajustar no clique direito no revelador > *Reveal Fog of War*.
-  - **Modo sobrevivência:** clique esquerdo na névoa > **ReHide Objects** (o que sai da visão volta a ficar escondido).
-  - **Resetar névoa** cobre o mapa todo de novo. Trocar de mapa também recomeça a névoa.
+  - **Modo sobrevivência:** botão *Sobrevivência* — o que sai da visão dos reveladores volta a ficar escondido.
+  - Cada mapa guarda o que já foi revelado; ao voltar para ele, a névoa volta igual. **Resetar névoa** cobre tudo de novo.
 - **Área:** detecção automática pela mesa, calibração manual (mire nos cantos), mostrar área, fixar objetos.
 
 ## Modelo
@@ -48,6 +48,6 @@ A 3D control desk (wooden frame, parchment top, rolled map with brass caps) that
 - **Fog:** TTS's native Fog of War, a single zone over the map area. The GM sitting as **Black** sees everything; props block line of sight.
   - **Create revealer** spawns a piece (gold chip) that opens a circle of vision around it. **Make revealer** does the same for selected tokens/props.
   - **Range**, **Angle** (360° = circle, less = cone) and **Turn view** adjust the selected revealers. You can also adjust them with right-click on the revealer > *Reveal Fog of War*.
-  - **Survival mode:** left-click the fog > **ReHide Objects** (anything that leaves vision is hidden again).
-  - **Reset fog** covers the whole map again. Switching maps also restarts the fog.
+  - **Survival mode:** the *Survival* button — anything that leaves the revealers' sight is hidden again.
+  - Each map remembers what was revealed; when you come back, the fog is as you left it. **Reset fog** covers everything again.
 - **Area:** automatic detection from the table, manual calibration (point at the corners), show area, pin objects.

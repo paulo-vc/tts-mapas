@@ -199,6 +199,8 @@ local EN = {
   ["Clique direito no revelador > Reveal Fog of War: alcance e cor."] = "Right-click a revealer > Reveal Fog of War: range and color.",
   ["Modo sobrevivência: clique na névoa > ReHide Objects."] = "Survival mode: click the fog > ReHide Objects.",
   ["Revelador criado no centro do mapa. Arraste para onde quiser."] = "Revealer created in the middle of the map. Drag it anywhere.",
+  ["O que sai da visão dos reveladores volta a ficar escondido"] = "Anything that leaves the revealers' sight is hidden again",
+  ["Modo sobrevivência"] = "Survival mode",
 }
 
 function tr(s)
@@ -237,6 +239,7 @@ function onLoad(saved)
 end
 
 function onSave()
+  captureFog(current())
   return JSON.encode(D)
 end
 
@@ -318,7 +321,8 @@ function afterAreaChange()
   showArea()
   local m = current()
   if m and m.fit ~= "mesa" then showMap(m) else applyGrid() end
-  buildFog(true)
+  captureFog(m)
+  buildFog("rebuild")
 end
 
 --------------------------------------------------------------------------
@@ -417,11 +421,14 @@ end
 --------------------------------------------------------------------------
 function switchTo(i)
   local old = current()
-  if old then old.objects = storeObjects() end
+  if old then
+    captureFog(old)
+    old.objects = storeObjects()
+  end
   D.current = i
   local m = D.maps[i]
   showMap(m)
-  buildFog(true)
+  buildFog("rebuild")
   Wait.frames(function()
     spawnStored(m.objects)
     m.objects = {}
@@ -545,22 +552,49 @@ function clearFog()
   for _, o in ipairs(getObjectsWithTag("Fog")) do o.destruct() end
 end
 
--- Garante a zona de névoa do mapa ativo. reset = true recria do zero (cobre tudo de novo).
--- Sem reset, uma zona que já existe é mantida, com o que já foi revelado.
-function buildFog(reset)
+-- Guarda no mapa o que já foi revelado na zona atual (RevealedLocations), para voltar igual depois.
+function captureFog(m)
+  local z = fogZone()
+  if not (z and m and m.fog) then return end
+  local ok, data = pcall(z.getData)
+  if ok and data and data.FogOfWar then
+    m.fog.revealed = data.FogOfWar.RevealedLocations or {}
+  end
+end
+
+-- Garante a zona de névoa do mapa ativo.
+--   mode = nil       mantém a zona que já existe (ex.: ao carregar a mesa)
+--   mode = "rebuild" recria com o que o mapa já tinha revelado (troca de mapa, área, modo sobrevivência)
+--   mode = "reset"   recria cobrindo tudo de novo
+-- Criada com spawnObjectData, como o OneWorld, para já nascer com as opções da zona definidas.
+function buildFog(mode)
   local f = current() and current().fog
   if not (f and f.on) then return clearFog() end
-  if fogZone() and not reset then return end
+  if fogZone() and not mode then return end
+  if mode == "reset" then f.revealed = {} end
   clearFog()
   local a = D.area
-  spawnObject({
-    type = "FogOfWar",   -- nome interno da zona de Fog of War (o "Fog" da lista é só o nome exibido)
+  spawnObjectData({
+    data = {
+      Name = "FogOfWar",
+      Transform = { posX = 0, posY = 0, posZ = 0, rotX = 0, rotY = 0, rotZ = 0, scaleX = 1, scaleY = 1, scaleZ = 1 },
+      Nickname = tr("Névoa"),
+      Locked = true,
+      Tags = { TAG_ZONE },
+      FogOfWar = {
+        HideGmPointer = false,
+        HideObjects = true,
+        ReHideObjects = f.survival == true,
+        Height = 0,
+        RevealedLocations = f.revealed or {},
+      },
+    },
     position = { a.x, a.y + FOG_ZONE_HEIGHT / 2 - 0.1, a.z },
+    rotation = { 0, 0, 0 },
     scale = { a.w, FOG_ZONE_HEIGHT, a.d },
     sound = false,
     callback_function = function(o)
-      o.addTag(TAG_ZONE)
-      o.setName(tr("Névoa"))
+      if not o.hasTag(TAG_ZONE) then o.addTag(TAG_ZONE) end
     end,
   })
 end
@@ -820,12 +854,21 @@ function fog(c, k)
   if not isGM(c) then return end
   local f = fogOf()
   if not f then return say(c, tr("Nenhum mapa ativo.")) end
-  if k == "on" then f.on = not f.on end
-  buildFog(true)
+  captureFog(current())
+  if k == "on" then
+    f.on = not f.on
+    buildFog("rebuild")
+  elseif k == "survival" then
+    f.survival = not f.survival
+    buildFog("rebuild")
+  else
+    buildFog("reset")
+  end
   build()
 end
 function n_on(_, c) fog(c, "on") end
 function n_reset(_, c) fog(c, "reset") end
+function n_surv(_, c) fog(c, "survival") end
 
 -- Reveladores
 function v_spawn(_, c)
@@ -1146,9 +1189,11 @@ function build()
       T(#getObjectsWithTag(TAG_REVEAL) .. tr(" revelador(es)   "), 0, line(0.3), 0.26, MUTED)
       gap(0.1)
 
-      heading(tr("Dicas"))
+      heading(tr("Modo sobrevivência"))
       T(tr("Clique direito no revelador > Reveal Fog of War: alcance e cor."), 0, line(0.28), 0.25, INK)
-      T(tr("Modo sobrevivência: clique na névoa > ReHide Objects."), 0, line(0.28), 0.25, INK)
+      c = line(0.55)
+      B(f.survival and tr("Sobrevivência: ligada") or tr("Sobrevivência: desligada"), "n_surv", 0, c, W, 0.55,
+        on(f.survival), PARCH_TXT, tr("O que sai da visão dos reveladores volta a ficar escondido"))
     end
 
   elseif S.tab == "area" then
