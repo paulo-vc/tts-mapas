@@ -42,6 +42,155 @@ local TABLE_FRACTION = {
 }
 
 --------------------------------------------------------------------------
+-- Idioma: D.lang = "pt" ou "en". tr() troca o texto em português pelo inglês.
+--------------------------------------------------------------------------
+local EN = {
+  ["Atlas do Mestre"] = "Game Master's Atlas",
+  ["Atlas: revelar névoa (segure)"] = "Atlas: reveal fog (hold)",
+  ["Atlas: cobrir névoa (segure)"] = "Atlas: cover fog (hold)",
+  ["Só o mestre (host/admin) pode usar o Atlas."] = "Only the game master (host/admin) can use the Atlas.",
+  ["Mapa: "] = "Map: ",
+  ["Mapa "] = "Map ",
+  ["Selecione um token ou prop primeiro (clique nele, ou arraste uma caixa)."] = "Select a token or prop first (click it, or drag a box).",
+  ["Ligue a névoa primeiro (aba Névoa)."] = "Turn the fog on first (Fog tab).",
+  ["Cole o link da imagem (.jpg ou .png)."] = "Paste the image link (.jpg or .png).",
+  ["Novo mapa: clique direito > Custom"] = "New map: right-click > Custom",
+  ["Clique com o botão direito no tile no meio da mesa > Custom > escolha a imagem > Import. Aceite subir para a Cloud."] = "Right-click the tile in the middle of the table > Custom > pick the image > Import. Accept the Cloud upload.",
+  ["Mapa adicionado!"] = "Map added!",
+  ["Tempo esgotado esperando a imagem. Tente de novo."] = "Timed out waiting for the image. Try again.",
+  ["Digite o nome da pasta no campo Nome."] = "Type the folder name in the Name field.",
+  ["Já existe uma pasta com esse nome."] = "A folder with that name already exists.",
+  ["Nenhum mapa ativo."] = "No active map.",
+  ["Estado de \""] = "State of \"",
+  ["\" salvo ("] = "\" saved (",
+  [" objetos)."] = " objects).",
+  ["Este mapa ainda não tem estado salvo."] = "This map has no saved state yet.",
+  ["Ajustes funcionam nos modos Caber e Preencher."] = "Adjustments work in Fit and Fill modes.",
+  ["Ligue a névoa primeiro."] = "Turn the fog on first.",
+  [": não é mais "] = ": no longer ",
+  ["revelador"] = "a revealer",
+  ["visão em cone"] = "cone vision",
+  ["Selecione objetos primeiro (arraste uma caixa ou Ctrl+clique)."] = "Select objects first (drag a box or Ctrl+click).",
+  [": fixo"] = ": pinned",
+  [": não é mais fixo"] = ": no longer pinned",
+  ["Mire o mouse no canto "] = "Point the mouse at corner ",
+  [" da área... (3s)"] = " of the area... (3s)",
+  ["Carregue um mapa na aba Mapas."] = "Load a map in the Maps tab.",
+  ["Mapa ativo: "] = "Active map: ",
+  ["Nenhum mapa ativo"] = "No active map",
+  ["Mapas"] = "Maps",
+  ["Imagem"] = "Image",
+  ["Grade"] = "Grid",
+  ["Névoa"] = "Fog",
+  ["Área"] = "Area",
+  ["Nome do mapa ou da pasta"] = "Map or folder name",
+  ["Link da imagem (.jpg / .png)"] = "Image link (.jpg / .png)",
+  ["+ Link"] = "+ Link",
+  ["Adiciona o mapa do link"] = "Adds the map from the link",
+  ["+ Arquivo do PC"] = "+ File from PC",
+  ["Escolher uma imagem do computador"] = "Pick an image from your computer",
+  ["+ Pasta"] = "+ Folder",
+  ["Cria uma pasta com o nome digitado"] = "Creates a folder with the typed name",
+  ["Mover mapa p/ cá"] = "Move map here",
+  ["Move o mapa ativo para a pasta aberta"] = "Moves the active map into the open folder",
+  ["Pasta: "] = "Folder: ",
+  ["Seus mapas"] = "Your maps",
+  ["< Voltar"] = "< Back",
+  ["Clique para abrir"] = "Click to open",
+  ["Clique de novo para apagar a pasta"] = "Click again to delete the folder",
+  ["Apagar pasta"] = "Delete folder",
+  ["Clique para carregar   |   * = tem estado salvo"] = "Click to load   |   * = has saved state",
+  ["Clique de novo para apagar"] = "Click again to delete",
+  ["Apagar mapa"] = "Delete map",
+  ["Nenhum mapa ainda. Adicione um acima."] = "No maps yet. Add one above.",
+  ["Salvar estado"] = "Save state",
+  ["Guarda a posição dos props e tokens neste mapa"] = "Saves where the props and tokens are on this map",
+  ["Restaurar"] = "Restore",
+  ["Confirmar?"] = "Confirm?",
+  ["Volta ao último estado salvo"] = "Goes back to the last saved state",
+  ["Como exibir"] = "How to display",
+  ["Na mesa"] = "On table",
+  ["Imagem direto na parte customizável da mesa"] = "Image straight on the table's custom surface",
+  ["Caber"] = "Fit",
+  ["Imagem inteira, mantendo a proporção"] = "Whole image, keeping proportions",
+  ["Preencher"] = "Fill",
+  ["Cobre a área toda"] = "Covers the whole area",
+  ["Ajuste fino (Caber / Preencher)"] = "Fine tuning (Fit / Fill)",
+  ["Zoom -"] = "Zoom -",
+  ["Zoom +"] = "Zoom +",
+  ["Girar 90"] = "Rotate 90",
+  ["Resetar ajuste"] = "Reset adjustment",
+  ["Grade: ligada"] = "Grid: on",
+  ["Grade: desligada"] = "Grid: off",
+  ["Encaixe: ligado"] = "Snap: on",
+  ["Encaixe: desligado"] = "Snap: off",
+  ["Peças encaixam no centro dos quadrados"] = "Pieces snap to the center of the squares",
+  ["Tamanho do quadrado"] = "Square size",
+  ["Intensidade das linhas"] = "Line strength",
+  ["Mais clara"] = "Lighter",
+  ["Mais escura"] = "Darker",
+  ["Alinhar com o desenho do mapa"] = "Align with the map's drawing",
+  ["Névoa: ligada"] = "Fog: on",
+  ["Névoa: desligada"] = "Fog: off",
+  ["Você ("] = "You (",
+  [") enxerga através; os jogadores não."] = ") see through it; players don't.",
+  ["Cobrir tudo"] = "Cover all",
+  ["Revelar tudo"] = "Reveal all",
+  ["Pincel"] = "Brush",
+  ["Revelar"] = "Reveal",
+  ["Revelando..."] = "Revealing...",
+  ["Liga/desliga: revela por onde o mouse passa"] = "On/off: reveals wherever the mouse goes",
+  ["Cobrir"] = "Cover",
+  ["Cobrindo..."] = "Covering...",
+  ["Liga/desliga: cobre por onde o mouse passa"] = "On/off: covers wherever the mouse goes",
+  ["Raio -"] = "Radius -",
+  ["Raio "] = "Radius ",
+  ["Raio +"] = "Radius +",
+  ["Célula -"] = "Cell -",
+  ["Célula "] = "Cell ",
+  ["Célula +"] = "Cell +",
+  ["Atalhos: Options > Game Keys > Atlas"] = "Hotkeys: Options > Game Keys > Atlas",
+  ["Tokens (selecione e clique)"] = "Tokens (select, then click)",
+  ["Revelador"] = "Revealer",
+  ["Limpa a névoa por onde o token passa (permanente)"] = "Clears the fog wherever the token goes (permanent)",
+  ["Visão em cone"] = "Cone vision",
+  ["Modo sobrevivência: só enxerga à frente do token"] = "Survival mode: only sees in front of the token",
+  ["Desmarcar"] = "Unmark",
+  ["Tira o token da névoa"] = "Removes the token from the fog",
+  ["Alcance -"] = "Range -",
+  ["Raio do revelador / alcance do cone"] = "Revealer radius / cone range",
+  ["Raio %.1f  Cone %d"] = "Radius %.1f  Cone %d",
+  ["Alcance +"] = "Range +",
+  ["Ângulo -"] = "Angle -",
+  ["Ângulo "] = "Angle ",
+  ["Ângulo +"] = "Angle +",
+  ["Sobrevivência: ligada"] = "Survival: on",
+  ["Sobrevivência: desligada"] = "Survival: off",
+  ["Tokens com visão em cone só enxergam à frente; a névoa volta atrás deles"] = "Cone-vision tokens only see ahead; the fog returns behind them",
+  ["Girar cone 90"] = "Turn cone 90",
+  ["Se o cone aponta para o lado errado do token"] = "If the cone points the wrong way for this token",
+  [" revelador(es)   "] = " revealer(s)   ",
+  [" com visão"] = " with vision",
+  ["Área do mapa na mesa"] = "Map area on the table",
+  ["calibrada"] = "calibrated",
+  ["automática"] = "automatic",
+  ["Detectar"] = "Detect",
+  ["Detecta a área customizável pela própria mesa"] = "Detects the custom area from the table itself",
+  ["Calibrar"] = "Calibrate",
+  ["Canto 2..."] = "Corner 2...",
+  ["Clique e mire o mouse no canto da área em 3s"] = "Click, then point the mouse at the area's corner within 3s",
+  ["Mostrar área"] = "Show area",
+  ["Fixar selecionados"] = "Pin selected",
+  ["Objetos fixos não trocam com o mapa"] = "Pinned objects don't change with the map",
+  ["Idioma"] = "Language",
+}
+
+function tr(s)
+  if D.lang == "en" then return EN[s] or s end
+  return s
+end
+
+--------------------------------------------------------------------------
 -- Ciclo de vida
 --------------------------------------------------------------------------
 function onLoad(saved)
@@ -51,7 +200,7 @@ function onLoad(saved)
   end
   D.maps = D.maps or {}
   D.folders = D.folders or {}
-  self.setName("Atlas do Mestre")
+  self.setName(tr("Atlas do Mestre"))
   self.addTag("Fixo")
   self.addTag("AtlasMesa")
 
@@ -62,8 +211,8 @@ function onLoad(saved)
     self.setColorTint({ 0.36, 0.23, 0.12 })
   end
 
-  addHotkey("Atlas: revelar névoa (segure)", function(color, _, _, up) hotkeyBrush(color, up, true) end, true)
-  addHotkey("Atlas: cobrir névoa (segure)", function(color, _, _, up) hotkeyBrush(color, up, false) end, true)
+  addHotkey(tr("Atlas: revelar névoa (segure)"), function(color, _, _, up) hotkeyBrush(color, up, true) end, true)
+  addHotkey(tr("Atlas: cobrir névoa (segure)"), function(color, _, _, up) hotkeyBrush(color, up, false) end, true)
 
   Wait.frames(function()
     if not D.area.manual then autoArea() end
@@ -97,7 +246,7 @@ end
 function isGM(color)
   local p = Player[color]
   if p and (p.host or p.admin) then return true end
-  say(color, "Só o mestre (host/admin) pode usar o Atlas.")
+  say(color, tr("Só o mestre (host/admin) pode usar o Atlas."))
   return false
 end
 
@@ -208,7 +357,7 @@ function spawnTile(m)
     callback_function = function(obj)
       obj.addTag("MapaTile")
       obj.setLock(true)
-      obj.setName("Mapa: " .. m.name)
+      obj.setName(tr("Mapa: ") .. m.name)
       obj.interactable = false
       Wait.frames(function() fitTile(obj, m) end, 5)
     end,
@@ -271,7 +420,7 @@ end
 
 function addMap(name, url)
   name = trim(name)
-  if name == "" then name = "Mapa " .. (#D.maps + 1) end
+  if name == "" then name = tr("Mapa ") .. (#D.maps + 1) end
   table.insert(D.maps, {
     name = name, url = url, fit = "mesa", zoom = 1, ox = 0, oz = 0, rot = 0,
     objects = {}, folder = D.openFolder,
@@ -634,7 +783,7 @@ function eachSelected(c, fn)
       n = n + 1
     end
   end
-  if n == 0 then say(c, "Selecione um token ou prop primeiro (clique nele, ou arraste uma caixa).") end
+  if n == 0 then say(c, tr("Selecione um token ou prop primeiro (clique nele, ou arraste uma caixa).")) end
   return n
 end
 
@@ -661,7 +810,7 @@ function hotkeyBrush(color, up, open)
   elseif fogOf() and fogOf().on then
     startBrush(color, open)
   else
-    say(color, "Ligue a névoa primeiro (aba Névoa).")
+    say(color, tr("Ligue a névoa primeiro (aba Névoa)."))
   end
 end
 
@@ -686,7 +835,7 @@ function in_url(_, _, value) S.newUrl = value end
 function a_addLink(_, c)
   if not isGM(c) then return end
   local url = trim(S.newUrl)
-  if url == "" then return say(c, "Cole o link da imagem (.jpg ou .png).") end
+  if url == "" then return say(c, tr("Cole o link da imagem (.jpg ou .png).")) end
   addMap(S.newName, url)
 end
 
@@ -695,29 +844,29 @@ function a_addFile(_, c)
   if not isGM(c) then return end
   local name, a = S.newName, D.area
   local tile = spawnObject({ type = "Custom_Tile", position = { a.x, a.y + 3, a.z }, scale = { 3, 1, 3 } })
-  tile.setName("Novo mapa: clique direito > Custom")
+  tile.setName(tr("Novo mapa: clique direito > Custom"))
   local guid = tile.getGUID()
-  say(c, "Clique com o botão direito no tile no meio da mesa > Custom > escolha a imagem > Import. Aceite subir para a Cloud.")
+  say(c, tr("Clique com o botão direito no tile no meio da mesa > Custom > escolha a imagem > Import. Aceite subir para a Cloud."))
   Wait.condition(function()
     local t = getObjectFromGUID(guid)
     local url = t.getCustomObject().image
     t.destruct()
     addMap(name, url)
-    say(c, "Mapa adicionado!")
+    say(c, tr("Mapa adicionado!"))
   end, function()
     local t = getObjectFromGUID(guid)
     if not t or t.spawning then return false end
     local co = t.getCustomObject()
     return co and co.image and co.image ~= ""
-  end, 600, function() say(c, "Tempo esgotado esperando a imagem. Tente de novo.") end)
+  end, 600, function() say(c, tr("Tempo esgotado esperando a imagem. Tente de novo.")) end)
 end
 
 function a_newFolder(_, c)
   if not isGM(c) then return end
   local name = trim(S.newName)
-  if name == "" then return say(c, "Digite o nome da pasta no campo Nome.") end
+  if name == "" then return say(c, tr("Digite o nome da pasta no campo Nome.")) end
   for _, f in ipairs(D.folders) do
-    if f == name then return say(c, "Já existe uma pasta com esse nome.") end
+    if f == name then return say(c, tr("Já existe uma pasta com esse nome.")) end
   end
   table.insert(D.folders, name)
   S.newName = ""
@@ -727,7 +876,7 @@ end
 function a_moveHere(_, c)
   if not isGM(c) then return end
   local m = current()
-  if not m then return say(c, "Nenhum mapa ativo.") end
+  if not m then return say(c, tr("Nenhum mapa ativo.")) end
   m.folder = D.openFolder
   build()
 end
@@ -740,16 +889,16 @@ end
 function a_save(_, c)
   if not isGM(c) then return end
   local m = current()
-  if not m then return say(c, "Nenhum mapa ativo.") end
+  if not m then return say(c, tr("Nenhum mapa ativo.")) end
   m.saved = storeObjects(true)
-  say(c, "Estado de \"" .. m.name .. "\" salvo (" .. #m.saved .. " objetos).")
+  say(c, tr("Estado de \"") .. m.name .. tr("\" salvo (") .. #m.saved .. tr(" objetos)."))
   build()
 end
 
 function a_restore(_, c)
   if not isGM(c) then return end
   local m = current()
-  if not (m and m.saved) then return say(c, "Este mapa ainda não tem estado salvo.") end
+  if not (m and m.saved) then return say(c, tr("Este mapa ainda não tem estado salvo.")) end
   if S.pending ~= "restore" then
     S.pending = "restore"
     return build()
@@ -823,7 +972,7 @@ function adjust(c, k)
   if not isGM(c) then return end
   local m = current()
   if not m then return end
-  if m.fit == "mesa" then return say(c, "Ajustes funcionam nos modos Caber e Preencher.") end
+  if m.fit == "mesa" then return say(c, tr("Ajustes funcionam nos modos Caber e Preencher.")) end
   if k == "zin" then m.zoom = (m.zoom or 1) * ZOOM_STEP
   elseif k == "zout" then m.zoom = (m.zoom or 1) / ZOOM_STEP
   elseif k == "rot" then m.rot = ((m.rot or 0) + 90) % 360
@@ -849,7 +998,7 @@ function j_right(_, c) adjust(c, "right") end
 function grid(c, k)
   if not isGM(c) then return end
   local m = current()
-  if not m then return say(c, "Nenhum mapa ativo.") end
+  if not m then return say(c, tr("Nenhum mapa ativo.")) end
   m.grid = m.grid or { on = false, size = 1, snap = true, ox = 0, oz = 0, alpha = 0.6 }
   local g = m.grid
   if k == "on" then g.on = not g.on
@@ -882,7 +1031,7 @@ function g_right(_, c) grid(c, "right") end
 function fog(c, k)
   if not isGM(c) then return end
   local f = fogOf()
-  if not f then return say(c, "Nenhum mapa ativo.") end
+  if not f then return say(c, tr("Nenhum mapa ativo.")) end
   if k == "on" then
     f.on, f.owner = not f.on, c
     if not f.on then stopBrush() end
@@ -895,7 +1044,7 @@ function fog(c, k)
     for i = 1, nx do for j = 1, nz do f.open[i .. ":" .. j] = true end end
     buildFog()
   elseif k == "reveal" or k == "hide" then
-    if not f.on then return say(c, "Ligue a névoa primeiro.") end
+    if not f.on then return say(c, tr("Ligue a névoa primeiro.")) end
     local open = (k == "reveal")
     if S.brush and S.brush.open == open then stopBrush() else startBrush(c, open) end
   elseif k == "rless" then S.brushRadius = math.max(0.5, S.brushRadius - 0.5)
@@ -926,7 +1075,7 @@ function n_cmore(_, c) fog(c, "cmore") end
 function n_surv(_, c)
   if not isGM(c) then return end
   local f = fogOf()
-  if not f then return say(c, "Nenhum mapa ativo.") end
+  if not f then return say(c, tr("Nenhum mapa ativo.")) end
   f.survival = not f.survival
   buildFog()
   build()
@@ -937,7 +1086,7 @@ function markTokens(c, tag, other, label)
   eachSelected(c, function(o)
     if o.hasTag(tag) then
       o.removeTag(tag)
-      say(c, (o.getName() ~= "" and o.getName() or o.type) .. ": não é mais " .. label)
+      say(c, (o.getName() ~= "" and o.getName() or o.type) .. tr(": não é mais ") .. label)
     else
       o.removeTag(other)
       o.addTag(tag)
@@ -947,8 +1096,8 @@ function markTokens(c, tag, other, label)
   end)
   build()
 end
-function v_reveal(_, c) markTokens(c, TAG_REVEAL, TAG_CONE, "revelador") end
-function v_cone(_, c) markTokens(c, TAG_CONE, TAG_REVEAL, "visão em cone") end
+function v_reveal(_, c) markTokens(c, TAG_REVEAL, TAG_CONE, tr("revelador")) end
+function v_cone(_, c) markTokens(c, TAG_CONE, TAG_REVEAL, tr("visão em cone")) end
 
 function v_clear(_, c)
   if not isGM(c) then return end
@@ -988,21 +1137,25 @@ function z_auto(_, c)
   build()
 end
 function z_show() showArea() end
+
+-- Idioma (os atalhos de teclado mudam de nome no próximo carregamento)
+function l_pt(_, c) if isGM(c) then D.lang = "pt"; build() end end
+function l_en(_, c) if isGM(c) then D.lang = "en"; build() end end
 function z_fix(_, c)
   if not isGM(c) then return end
   local sel = Player[c].getSelectedObjects()
-  if #sel == 0 then return say(c, "Selecione objetos primeiro (arraste uma caixa ou Ctrl+clique).") end
+  if #sel == 0 then return say(c, tr("Selecione objetos primeiro (arraste uma caixa ou Ctrl+clique).")) end
   for _, o in ipairs(sel) do
     if o ~= self then
       if o.hasTag("Fixo") then o.removeTag("Fixo") else o.addTag("Fixo") end
-      say(c, (o.getName() ~= "" and o.getName() or o.type) .. (o.hasTag("Fixo") and ": fixo" or ": não é mais fixo"))
+      say(c, (o.getName() ~= "" and o.getName() or o.type) .. (o.hasTag("Fixo") and tr(": fixo") or tr(": não é mais fixo")))
     end
   end
 end
 function z_calib(_, c)
   if not isGM(c) then return end
   local step = S.calib and 2 or 1
-  say(c, "Mire o mouse no canto " .. step .. " da área... (3s)")
+  say(c, tr("Mire o mouse no canto ") .. step .. tr(" da área... (3s)"))
   Wait.time(function()
     local p = Player[c].getPointerPosition()
     if step == 1 then
@@ -1099,18 +1252,18 @@ function build()
   local function on(flag) return flag and WINE or LEATHER end
   local function needMap()
     if m then return true end
-    T("Carregue um mapa na aba Mapas.", 0, line(0.4), 0.32, MUTED)
+    T(tr("Carregue um mapa na aba Mapas."), 0, line(0.4), 0.32, MUTED)
     return false
   end
 
   -- Cabeçalho
-  T("Atlas do Mestre", 0, line(0.6), 0.6, WINE_TXT)
-  T(m and ("Mapa ativo: " .. m.name) or "Nenhum mapa ativo", 0, line(0.36), 0.36, MUTED)
+  T(tr("Atlas do Mestre"), 0, line(0.6), 0.6, WINE_TXT)
+  T(m and (tr("Mapa ativo: ") .. m.name) or tr("Nenhum mapa ativo"), 0, line(0.36), 0.36, MUTED)
   gap(0.05)
 
   -- Abas
   local c = line(0.55)
-  local tabs = { { "mapas", "Mapas" }, { "imagem", "Imagem" }, { "grade", "Grade" }, { "nevoa", "Névoa" }, { "area", "Área" } }
+  local tabs = { { "mapas", tr("Mapas") }, { "imagem", tr("Imagem") }, { "grade", tr("Grade") }, { "nevoa", tr("Névoa") }, { "area", tr("Área") } }
   local tw = W / #tabs
   for k, t in ipairs(tabs) do
     local sel = S.tab == t[1]
@@ -1119,16 +1272,16 @@ function build()
   gap(0.2)
 
   if S.tab == "mapas" then
-    I("in_name", "Nome do mapa ou da pasta", S.newName, 0, line(0.5), W, 0.5)
-    I("in_url", "Link da imagem (.jpg / .png)", S.newUrl, 0, line(0.5), W, 0.5)
+    I("in_name", tr("Nome do mapa ou da pasta"), S.newName, 0, line(0.5), W, 0.5)
+    I("in_url", tr("Link da imagem (.jpg / .png)"), S.newUrl, 0, line(0.5), W, 0.5)
     c = line(0.5)
-    B("+ Link", "a_addLink", x2[1], c, half, 0.5, MOSS, PARCH_TXT, "Adiciona o mapa do link")
-    B("+ Arquivo do PC", "a_addFile", x2[2], c, half, 0.5, MOSS, PARCH_TXT, "Escolher uma imagem do computador")
+    B(tr("+ Link"), "a_addLink", x2[1], c, half, 0.5, MOSS, PARCH_TXT, tr("Adiciona o mapa do link"))
+    B(tr("+ Arquivo do PC"), "a_addFile", x2[2], c, half, 0.5, MOSS, PARCH_TXT, tr("Escolher uma imagem do computador"))
     c = line(0.5)
-    B("+ Pasta", "a_newFolder", x2[1], c, half, 0.5, LEATHER, PARCH_TXT, "Cria uma pasta com o nome digitado")
-    B("Mover mapa p/ cá", "a_moveHere", x2[2], c, half, 0.5, LEATHER, PARCH_TXT, "Move o mapa ativo para a pasta aberta")
+    B(tr("+ Pasta"), "a_newFolder", x2[1], c, half, 0.5, LEATHER, PARCH_TXT, tr("Cria uma pasta com o nome digitado"))
+    B(tr("Mover mapa p/ cá"), "a_moveHere", x2[2], c, half, 0.5, LEATHER, PARCH_TXT, tr("Move o mapa ativo para a pasta aberta"))
     gap(0.05)
-    heading(D.openFolder and ("Pasta: " .. D.openFolder) or "Seus mapas")
+    heading(D.openFolder and (tr("Pasta: ") .. D.openFolder) or tr("Seus mapas"))
 
     local entries = getEntries()
     local pages = math.max(1, math.ceil(#entries / ROWS))
@@ -1140,24 +1293,24 @@ function build()
       if e then
         local nx = -W / 2 + nameW / 2
         if e.kind == "back" then
-          B("< Voltar", "r" .. n, 0, rc, W, 0.46, LEATHER_SOFT)
+          B(tr("< Voltar"), "r" .. n, 0, rc, W, 0.46, LEATHER_SOFT)
         elseif e.kind == "folder" then
           local confirm = S.pending == ("folder:" .. e.fi)
-          B("Pasta: " .. e.name .. "   (" .. e.count .. ")", "r" .. n, nx, rc, nameW, 0.46, LEATHER_SOFT, PARCH_TXT,
-            "Clique para abrir")
+          B(tr("Pasta: ") .. e.name .. "   (" .. e.count .. ")", "r" .. n, nx, rc, nameW, 0.46, LEATHER_SOFT, PARCH_TXT,
+            tr("Clique para abrir"))
           B(confirm and "?" or "x", "x" .. n, W / 2 - 0.27, rc, 0.54, 0.46, BRICK, PARCH_TXT,
-            confirm and "Clique de novo para apagar a pasta" or "Apagar pasta")
+            confirm and tr("Clique de novo para apagar a pasta") or tr("Apagar pasta"))
         else
           local mp = D.maps[e.i]
           local sel = e.i == D.current
           local confirm = S.pending == ("map:" .. e.i)
           B(mp.name .. (mp.saved and "  *" or ""), "r" .. n, nx, rc, nameW, 0.46, sel and WINE or LEATHER, PARCH_TXT,
-            "Clique para carregar   |   * = tem estado salvo")
+            tr("Clique para carregar   |   * = tem estado salvo"))
           B(confirm and "?" or "x", "x" .. n, W / 2 - 0.27, rc, 0.54, 0.46, BRICK, PARCH_TXT,
-            confirm and "Clique de novo para apagar" or "Apagar mapa")
+            confirm and tr("Clique de novo para apagar") or tr("Apagar mapa"))
         end
       elseif n == 1 then
-        T("Nenhum mapa ainda. Adicione um acima.", 0, rc, 0.3, MUTED)
+        T(tr("Nenhum mapa ainda. Adicione um acima."), 0, rc, 0.3, MUTED)
       end
     end
     c = line(0.45)
@@ -1166,50 +1319,50 @@ function build()
     B(">", "a_next", W / 3, c, 1.0, 0.45)
     gap(0.05)
     c = line(0.5)
-    B("Salvar estado", "a_save", x2[1], c, half, 0.5, MOSS, PARCH_TXT, "Guarda a posição dos props e tokens neste mapa")
-    B(S.pending == "restore" and "Confirmar?" or "Restaurar", "a_restore", x2[2], c, half, 0.5, BRICK, PARCH_TXT,
-      "Volta ao último estado salvo")
+    B(tr("Salvar estado"), "a_save", x2[1], c, half, 0.5, MOSS, PARCH_TXT, tr("Guarda a posição dos props e tokens neste mapa"))
+    B(S.pending == "restore" and tr("Confirmar?") or tr("Restaurar"), "a_restore", x2[2], c, half, 0.5, BRICK, PARCH_TXT,
+      tr("Volta ao último estado salvo"))
 
   elseif S.tab == "imagem" then
     if needMap() then
-      heading("Como exibir")
+      heading(tr("Como exibir"))
       c = line(0.55)
-      B("Na mesa", "f_mesa", x3[1], c, third, 0.55, on(m.fit == "mesa"), PARCH_TXT, "Imagem direto na parte customizável da mesa")
-      B("Caber", "f_caber", x3[2], c, third, 0.55, on(m.fit == "caber"), PARCH_TXT, "Imagem inteira, mantendo a proporção")
-      B("Preencher", "f_preencher", x3[3], c, third, 0.55, on(m.fit == "preencher"), PARCH_TXT, "Cobre a área toda")
+      B(tr("Na mesa"), "f_mesa", x3[1], c, third, 0.55, on(m.fit == "mesa"), PARCH_TXT, tr("Imagem direto na parte customizável da mesa"))
+      B(tr("Caber"), "f_caber", x3[2], c, third, 0.55, on(m.fit == "caber"), PARCH_TXT, tr("Imagem inteira, mantendo a proporção"))
+      B(tr("Preencher"), "f_preencher", x3[3], c, third, 0.55, on(m.fit == "preencher"), PARCH_TXT, tr("Cobre a área toda"))
       gap(0.15)
-      heading("Ajuste fino (Caber / Preencher)")
+      heading(tr("Ajuste fino (Caber / Preencher)"))
       c = line(0.55)
-      B("Zoom -", "j_zout", x3[1], c, third, 0.55)
-      B("Zoom +", "j_zin", x3[2], c, third, 0.55)
-      B("Girar 90", "j_rot", x3[3], c, third, 0.55)
+      B(tr("Zoom -"), "j_zout", x3[1], c, third, 0.55)
+      B(tr("Zoom +"), "j_zin", x3[2], c, third, 0.55)
+      B(tr("Girar 90"), "j_rot", x3[3], c, third, 0.55)
       c = line(0.55)
       B("<", "j_left", x4[1], c, quarter, 0.55)
       B("^", "j_up", x4[2], c, quarter, 0.55)
       B("v", "j_down", x4[3], c, quarter, 0.55)
       B(">", "j_right", x4[4], c, quarter, 0.55)
       c = line(0.5)
-      B("Resetar ajuste", "j_reset", 0, c, W, 0.5, LEATHER_SOFT)
+      B(tr("Resetar ajuste"), "j_reset", 0, c, W, 0.5, LEATHER_SOFT)
     end
 
   elseif S.tab == "grade" then
     if needMap() then
       local g = m.grid or {}
       c = line(0.55)
-      B(g.on and "Grade: ligada" or "Grade: desligada", "g_on", x2[1], c, half, 0.55, on(g.on))
-      B(g.snap ~= false and "Encaixe: ligado" or "Encaixe: desligado", "g_snap", x2[2], c, half, 0.55, on(g.snap ~= false),
-        PARCH_TXT, "Peças encaixam no centro dos quadrados")
+      B(g.on and tr("Grade: ligada") or tr("Grade: desligada"), "g_on", x2[1], c, half, 0.55, on(g.on))
+      B(g.snap ~= false and tr("Encaixe: ligado") or tr("Encaixe: desligado"), "g_snap", x2[2], c, half, 0.55, on(g.snap ~= false),
+        PARCH_TXT, tr("Peças encaixam no centro dos quadrados"))
       gap(0.15)
-      heading("Tamanho do quadrado")
+      heading(tr("Tamanho do quadrado"))
       c = line(0.55)
       B("-", "g_less", x3[1], c, third, 0.55)
       T(tostring(g.size or 1), x3[2], c, 0.4, INK)
       B("+", "g_more", x3[3], c, third, 0.55)
-      heading("Intensidade das linhas")
+      heading(tr("Intensidade das linhas"))
       c = line(0.55)
-      B("Mais clara", "g_light", x2[1], c, half, 0.55)
-      B("Mais escura", "g_dark", x2[2], c, half, 0.55)
-      heading("Alinhar com o desenho do mapa")
+      B(tr("Mais clara"), "g_light", x2[1], c, half, 0.55)
+      B(tr("Mais escura"), "g_dark", x2[2], c, half, 0.55)
+      heading(tr("Alinhar com o desenho do mapa"))
       c = line(0.55)
       B("<", "g_left", x4[1], c, quarter, 0.55)
       B("^", "g_up", x4[2], c, quarter, 0.55)
@@ -1221,66 +1374,71 @@ function build()
     if needMap() then
       local f = m.fog or {}
       c = line(0.55)
-      B(f.on and "Névoa: ligada" or "Névoa: desligada", "n_on", 0, c, W, 0.55, on(f.on))
-      T("Você (" .. (f.owner or "Black") .. ") enxerga através; os jogadores não.", 0, line(0.3), 0.26, MUTED)
+      B(f.on and tr("Névoa: ligada") or tr("Névoa: desligada"), "n_on", 0, c, W, 0.55, on(f.on))
+      T(tr("Você (") .. (f.owner or "Black") .. tr(") enxerga através; os jogadores não."), 0, line(0.3), 0.26, MUTED)
       c = line(0.5)
-      B("Cobrir tudo", "n_cover", x2[1], c, half, 0.5)
-      B("Revelar tudo", "n_clear", x2[2], c, half, 0.5)
+      B(tr("Cobrir tudo"), "n_cover", x2[1], c, half, 0.5)
+      B(tr("Revelar tudo"), "n_clear", x2[2], c, half, 0.5)
       gap(0.1)
-      heading("Pincel")
+      heading(tr("Pincel"))
       local rev = S.brush and S.brush.open
       local hid = S.brush and not S.brush.open
       c = line(0.55)
-      B(rev and "Revelando..." or "Revelar", "n_reveal", x2[1], c, half, 0.55, rev and MOSS or LEATHER, PARCH_TXT,
-        "Liga/desliga: revela por onde o mouse passa")
-      B(hid and "Cobrindo..." or "Cobrir", "n_hide", x2[2], c, half, 0.55, hid and BRICK or LEATHER, PARCH_TXT,
-        "Liga/desliga: cobre por onde o mouse passa")
+      B(rev and tr("Revelando...") or tr("Revelar"), "n_reveal", x2[1], c, half, 0.55, rev and MOSS or LEATHER, PARCH_TXT,
+        tr("Liga/desliga: revela por onde o mouse passa"))
+      B(hid and tr("Cobrindo...") or tr("Cobrir"), "n_hide", x2[2], c, half, 0.55, hid and BRICK or LEATHER, PARCH_TXT,
+        tr("Liga/desliga: cobre por onde o mouse passa"))
       c = line(0.5)
-      B("Raio -", "n_rless", x3[1], c, third, 0.5)
-      T("Raio " .. S.brushRadius, x3[2], c, 0.32, INK)
-      B("Raio +", "n_rmore", x3[3], c, third, 0.5)
+      B(tr("Raio -"), "n_rless", x3[1], c, third, 0.5)
+      T(tr("Raio ") .. S.brushRadius, x3[2], c, 0.32, INK)
+      B(tr("Raio +"), "n_rmore", x3[3], c, third, 0.5)
       c = line(0.5)
-      B("Célula -", "n_cless", x3[1], c, third, 0.5)
-      T(S.pending == "cell" and "Confirmar?" or ("Célula " .. (f.cell or 2)), x3[2], c, 0.32,
+      B(tr("Célula -"), "n_cless", x3[1], c, third, 0.5)
+      T(S.pending == "cell" and tr("Confirmar?") or (tr("Célula ") .. (f.cell or 2)), x3[2], c, 0.32,
         S.pending == "cell" and WINE_TXT or INK)
-      B("Célula +", "n_cmore", x3[3], c, third, 0.5)
-      T("Atalhos: Options > Game Keys > Atlas", 0, line(0.3), 0.26, MUTED)
+      B(tr("Célula +"), "n_cmore", x3[3], c, third, 0.5)
+      T(tr("Atalhos: Options > Game Keys > Atlas"), 0, line(0.3), 0.26, MUTED)
 
-      heading("Tokens (selecione e clique)")
+      heading(tr("Tokens (selecione e clique)"))
       c = line(0.5)
-      B("Revelador", "v_reveal", x3[1], c, third, 0.5, LEATHER, PARCH_TXT,
-        "Limpa a névoa por onde o token passa (permanente)")
-      B("Visão em cone", "v_cone", x3[2], c, third, 0.5, LEATHER, PARCH_TXT,
-        "Modo sobrevivência: só enxerga à frente do token")
-      B("Desmarcar", "v_clear", x3[3], c, third, 0.5, LEATHER_SOFT, PARCH_TXT, "Tira o token da névoa")
+      B(tr("Revelador"), "v_reveal", x3[1], c, third, 0.5, LEATHER, PARCH_TXT,
+        tr("Limpa a névoa por onde o token passa (permanente)"))
+      B(tr("Visão em cone"), "v_cone", x3[2], c, third, 0.5, LEATHER, PARCH_TXT,
+        tr("Modo sobrevivência: só enxerga à frente do token"))
+      B(tr("Desmarcar"), "v_clear", x3[3], c, third, 0.5, LEATHER_SOFT, PARCH_TXT, tr("Tira o token da névoa"))
       local v = S.lastVision or DEFAULT_VISION
       c = line(0.5)
-      B("Alcance -", "v_rless", x3[1], c, third, 0.5, LEATHER, PARCH_TXT, "Raio do revelador / alcance do cone")
-      T(string.format("Raio %.1f  Cone %d", v.radius, v.range), x3[2], c, 0.28, INK)
-      B("Alcance +", "v_rmore", x3[3], c, third, 0.5, LEATHER, PARCH_TXT, "Raio do revelador / alcance do cone")
+      B(tr("Alcance -"), "v_rless", x3[1], c, third, 0.5, LEATHER, PARCH_TXT, tr("Raio do revelador / alcance do cone"))
+      T(string.format(tr("Raio %.1f  Cone %d"), v.radius, v.range), x3[2], c, 0.28, INK)
+      B(tr("Alcance +"), "v_rmore", x3[3], c, third, 0.5, LEATHER, PARCH_TXT, tr("Raio do revelador / alcance do cone"))
       c = line(0.5)
-      B("Ângulo -", "v_aless", x3[1], c, third, 0.5)
-      T("Ângulo " .. v.angle .. "°", x3[2], c, 0.3, INK)
-      B("Ângulo +", "v_amore", x3[3], c, third, 0.5)
+      B(tr("Ângulo -"), "v_aless", x3[1], c, third, 0.5)
+      T(tr("Ângulo ") .. v.angle .. "°", x3[2], c, 0.3, INK)
+      B(tr("Ângulo +"), "v_amore", x3[3], c, third, 0.5)
       c = line(0.55)
-      B(f.survival and "Sobrevivência: ligada" or "Sobrevivência: desligada", "n_surv", x2[1], c, half, 0.55,
-        on(f.survival), PARCH_TXT, "Tokens com visão em cone só enxergam à frente; a névoa volta atrás deles")
-      B("Girar cone 90", "v_rot", x2[2], c, half, 0.55, LEATHER, PARCH_TXT,
-        "Se o cone aponta para o lado errado do token")
-      T(#getObjectsWithTag(TAG_REVEAL) .. " revelador(es)   " .. #getObjectsWithTag(TAG_CONE) .. " com visão",
+      B(f.survival and tr("Sobrevivência: ligada") or tr("Sobrevivência: desligada"), "n_surv", x2[1], c, half, 0.55,
+        on(f.survival), PARCH_TXT, tr("Tokens com visão em cone só enxergam à frente; a névoa volta atrás deles"))
+      B(tr("Girar cone 90"), "v_rot", x2[2], c, half, 0.55, LEATHER, PARCH_TXT,
+        tr("Se o cone aponta para o lado errado do token"))
+      T(#getObjectsWithTag(TAG_REVEAL) .. tr(" revelador(es)   ") .. #getObjectsWithTag(TAG_CONE) .. tr(" com visão"),
         0, line(0.3), 0.26, MUTED)
     end
 
   elseif S.tab == "area" then
-    heading("Área do mapa na mesa")
-    T(string.format("%.1f x %.1f  (%s)", D.area.w, D.area.d, D.area.manual and "calibrada" or "automática"),
+    heading(tr("Área do mapa na mesa"))
+    T(string.format("%.1f x %.1f  (%s)", D.area.w, D.area.d, D.area.manual and tr("calibrada") or tr("automática")),
       0, line(0.35), 0.32, INK)
     c = line(0.55)
-    B("Detectar", "z_auto", x2[1], c, half, 0.55, LEATHER, PARCH_TXT, "Detecta a área customizável pela própria mesa")
-    B(S.calib and "Canto 2..." or "Calibrar", "z_calib", x2[2], c, half, 0.55, on(S.calib ~= nil), PARCH_TXT,
-      "Clique e mire o mouse no canto da área em 3s")
+    B(tr("Detectar"), "z_auto", x2[1], c, half, 0.55, LEATHER, PARCH_TXT, tr("Detecta a área customizável pela própria mesa"))
+    B(S.calib and tr("Canto 2...") or tr("Calibrar"), "z_calib", x2[2], c, half, 0.55, on(S.calib ~= nil), PARCH_TXT,
+      tr("Clique e mire o mouse no canto da área em 3s"))
     c = line(0.55)
-    B("Mostrar área", "z_show", x2[1], c, half, 0.55)
-    B("Fixar selecionados", "z_fix", x2[2], c, half, 0.55, LEATHER, PARCH_TXT, "Objetos fixos não trocam com o mapa")
+    B(tr("Mostrar área"), "z_show", x2[1], c, half, 0.55)
+    B(tr("Fixar selecionados"), "z_fix", x2[2], c, half, 0.55, LEATHER, PARCH_TXT, tr("Objetos fixos não trocam com o mapa"))
+    gap(0.2)
+    heading(tr("Idioma") .. " / Language")
+    c = line(0.55)
+    B("Português", "l_pt", x2[1], c, half, 0.55, on(D.lang ~= "en"))
+    B("English", "l_en", x2[2], c, half, 0.55, on(D.lang == "en"))
   end
 end

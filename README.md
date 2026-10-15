@@ -27,3 +27,27 @@ Sem o modelo também funciona: cole `Atlas.lua` num bloco (Objects > Blocks > Sq
 
 ## Modelo
 `tools/gerar_modelo.py` gera `assets/atlas.obj` e `assets/atlas.png` (precisa de `pillow` e `numpy`). Se mudar o tamanho do tampo, ajuste `INNER` em `Atlas.lua`.
+
+## Idioma / Language
+Aba **Área** > **Português / English**. A escolha fica salva no objeto.
+
+---
+
+# Game Master's Atlas (English)
+
+A 3D control desk (wooden frame, parchment top, rolled map with brass caps) that swaps maps in the middle of the Tabletop Simulator table, keeping each map's props and tokens, with folders, grid and fog of war. Switch the board to English in the **Area** tab > **English**.
+
+## Install
+1. **Objects > Components > Custom > Model** — Model/Mesh: `assets/atlas.obj`, Diffuse/Image: `assets/atlas.png`. Accept the Steam Cloud upload, then Import.
+2. Right-click the object > **Scripting > Scripting Editor**, paste `Atlas.lua`, click **Save & Play**.
+3. The rolled-map side is the top of the board. If the buttons are upside down, rotate the object 180°.
+
+## Tabs
+- **Maps:** add by link or from your PC (uploaded to the Cloud), folders, paged list, delete (x, two clicks), **Save state / Restore** for props and tokens.
+- **Image:** *On table* (the table's custom surface), *Fit* or *Fill* (a tile resting on the table), zoom, rotation, position.
+- **Grid:** lines drawn over the map, snap, size, line strength and alignment.
+- **Fog:** Hidden Zones right on the map. The GM sees through; players see solid fog and not the hidden tokens. Reveal/cover brush (or hotkeys: Options > Game Keys > "Atlas: reveal fog" / "Atlas: cover fog").
+  - **Revealer:** a selected token clears the fog wherever it goes (permanent).
+  - **Survival mode:** *Cone vision* tokens only see a cone ahead; the fog comes back behind them. Range, angle and direction per token.
+  - Opened vision is shared by all players (Hidden Zones can't differ per player). Sit as **Black** for black fog.
+- **Area:** automatic detection from the table, manual calibration (point at the corners), show area, pin objects.
