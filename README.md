@@ -1,53 +1,45 @@
-# Atlas do Mestre (TTS Mapas v3)
+# Atlas do Mestre (TTS Mapas v4)
 
-Uma mesa de controle em 3D (moldura de madeira, tampo de pergaminho, mapa enrolado com ponteiras de latão) que troca os mapas no centro da mesa do Tabletop Simulator, com props e tokens salvos por mapa, pastas, grade e névoa. Inspirado no OneWorld.
+Uma mesa de controle em 3D (moldura de nogueira, tampo de couro ardósia, detalhes em latão) que guarda seus mapas com miniaturas e troca a imagem da mesa do Tabletop Simulator, com props e tokens salvos por mapa e grade. Português e inglês.
 
 ## Instalação
-1. Se você usou versões anteriores: apague o script Global da v2 (Modding > Scripting > Global) e qualquer bloco antigo.
+1. Se você usou versões anteriores, apague o objeto antigo. A v4 limpa sozinha restos da névoa antiga.
 2. **Objects > Components > Custom > Model**
    - Model/Mesh: `assets/atlas.obj`
    - Diffuse/Image: `assets/atlas.png`
-   - Aceite subir os arquivos para a Steam Cloud. Clique em Import.
+   - Aceite subir os arquivos para a Steam Cloud e clique em Import.
 3. Clique direito no objeto > **Scripting > Scripting Editor**, cole `Atlas.lua` e clique em **Save & Play**.
-4. O lado com o mapa enrolado é o topo do painel. Se os botões ficarem de cabeça para baixo, gire o objeto 180°.
-
-Sem o modelo também funciona: cole `Atlas.lua` num bloco (Objects > Blocks > Square).
 
 ## Abas
-- **Mapas:** adicionar por link ou arquivo do PC (sobe para a Cloud), pastas, lista com páginas, apagar (x, dois cliques), **Salvar estado / Restaurar** dos props e tokens.
-- **Imagem:** *Na mesa* (imagem na parte customizável da mesa), *Caber* ou *Preencher* (tile assentado na superfície da mesa), zoom, giro e posição.
-- **Grade:** linhas desenhadas por cima do mapa, encaixe (snap), tamanho, intensidade e alinhamento.
-- **Névoa:** Fog of War nativo do TTS, uma zona só cobrindo a área do mapa. O mestre sentado no **Black** enxerga tudo; props bloqueiam a linha de visão.
-  - **Criar revelador** cria uma peça (ficha dourada) que abre um círculo de visão em volta dela. **Marcar revelador** faz o mesmo com tokens/props selecionados.
-  - **Alcance**, **Ângulo** (360° = círculo, menos = cone) e **Girar visão** ajustam os reveladores selecionados. Também dá para ajustar no clique direito no revelador > *Reveal Fog of War*.
-  - **Modo sobrevivência:** botão *Sobrevivência* — o que sai da visão dos reveladores volta a ficar escondido.
-  - Cada mapa guarda o que já foi revelado; ao voltar para ele, a névoa volta igual. **Resetar névoa** cobre tudo de novo.
-- **Área:** detecção automática pela mesa, calibração manual (mire nos cantos), mostrar área, fixar objetos.
+- **Mapas**
+  - **+ Arquivo do PC** (principal): escolha a imagem no menu Custom do TTS (sobe para a sua Cloud) e dê um nome. **Link** adiciona por endereço da web.
+  - Miniaturas de cada mapa, 6 por página. Clique para selecionar; clique de novo (ou **Aplicar na mesa**) para colocar na mesa.
+  - **Renomear**, **Mover** (para outra pasta) e **Apagar**, por caixas de diálogo do próprio TTS.
+  - **Pasta:** escolhe qual pasta ver; **+ Pasta** cria uma.
+  - **Salvar estado / Restaurar:** guarda e devolve a posição dos props e tokens do mapa ativo. Ao trocar de mapa, os objetos de cada um também são guardados.
+- **Imagem:** **Encaixar na mesa** (principal) coloca a imagem na parte customizável da mesa. Em *Avançado*, **Caber** / **Preencher** põem a imagem sobre a área, com zoom, giro e posição.
+- **Grade:** linhas por cima do mapa e encaixe (snap); tamanho, cor, espessura, intensidade, alinhamento e **Seguir relevo** (as linhas sobem por cima de props e terrenos 3D).
+- **Área:** detectar, calibrar (mire nos cantos), mostrar área, fixar objetos; idioma; **Resetar tudo** (a mesa volta ao padrão e as configurações de imagem, grade e área são apagadas — os mapas continuam no Atlas).
 
-## Modelo
-`tools/gerar_modelo.py` gera `assets/atlas.obj` e `assets/atlas.png` (precisa de `pillow` e `numpy`). Se mudar o tamanho do tampo, ajuste `INNER` em `Atlas.lua`.
+## Ajustes
+No topo de `Atlas.lua`: `DECAL_ROT` (se as miniaturas aparecerem de cabeça para baixo), `U` (tamanho dos botões), `TABLE_FRACTION` (área automática por tipo de mesa).
+`tools/gerar_modelo.py` gera o modelo e a textura (precisa de `pillow` e `numpy`).
 
-## Idioma / Language
-Aba **Área** > **Português / English**. A escolha fica salva no objeto.
+## Créditos e inspiração
+Ideias adaptadas de mods da Workshop: *Map changer / Picture Book* (Marum) — miniaturas por decals e preservar as mãos ao trocar a imagem da mesa; *3D Gridlines* (stom) — cores, espessura e grade seguindo o relevo.
 
 ---
 
 # Game Master's Atlas (English)
 
-A 3D control desk (wooden frame, parchment top, rolled map with brass caps) that swaps maps in the middle of the Tabletop Simulator table, keeping each map's props and tokens, with folders, grid and fog of war. Switch the board to English in the **Area** tab > **English**.
+A 3D control desk (walnut frame, slate leather top, brass details) that stores your maps with thumbnails and swaps the Tabletop Simulator table image, keeping each map's props and tokens, plus a grid. Switch to English in the **Area** tab.
 
 ## Install
 1. **Objects > Components > Custom > Model** — Model/Mesh: `assets/atlas.obj`, Diffuse/Image: `assets/atlas.png`. Accept the Steam Cloud upload, then Import.
 2. Right-click the object > **Scripting > Scripting Editor**, paste `Atlas.lua`, click **Save & Play**.
-3. The rolled-map side is the top of the board. If the buttons are upside down, rotate the object 180°.
 
 ## Tabs
-- **Maps:** add by link or from your PC (uploaded to the Cloud), folders, paged list, delete (x, two clicks), **Save state / Restore** for props and tokens.
-- **Image:** *On table* (the table's custom surface), *Fit* or *Fill* (a tile resting on the table), zoom, rotation, position.
-- **Grid:** lines drawn over the map, snap, size, line strength and alignment.
-- **Fog:** TTS's native Fog of War, a single zone over the map area. The GM sitting as **Black** sees everything; props block line of sight.
-  - **Create revealer** spawns a piece (gold chip) that opens a circle of vision around it. **Make revealer** does the same for selected tokens/props.
-  - **Range**, **Angle** (360° = circle, less = cone) and **Turn view** adjust the selected revealers. You can also adjust them with right-click on the revealer > *Reveal Fog of War*.
-  - **Survival mode:** the *Survival* button — anything that leaves the revealers' sight is hidden again.
-  - Each map remembers what was revealed; when you come back, the fog is as you left it. **Reset fog** covers everything again.
-- **Area:** automatic detection from the table, manual calibration (point at the corners), show area, pin objects.
+- **Maps:** **+ File from PC** (main) or **Link**; thumbnails, 6 per page; click to select, click again (or **Apply to table**) to use it; **Rename**, **Move**, **Delete** via TTS dialogs; folders; **Save state / Restore**.
+- **Image:** **Fit to table** (main). *Advanced:* **Fit** / **Fill** over the area with zoom, rotation and position.
+- **Grid:** lines over the map, snap, size, color, thickness, strength, alignment and **Follow terrain**.
+- **Area:** detect, calibrate, show area, pin objects; language; **Reset everything** (the table returns to default; the maps stay in the Atlas).
