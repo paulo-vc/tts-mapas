@@ -916,12 +916,18 @@ function B(label, fn, x, z, w, h, color, textColor, tip)
   })
 end
 
+-- Texto solto. Leva uma plaqueta escura atrás: no jogo o couro pode ficar claro com a luz,
+-- e texto claro sem fundo some.
+local PLATE = { 0.10, 0.11, 0.13, 0.82 }
 function T(label, x, z, h, color)
   local pos, sc = place(x, z)
+  local fs = math.floor(h * U * 0.62)
+  local w = math.min(INNER.w - 0.6, #label * fs * 0.52 / U + 0.4)
   self.createButton({
     label = label, click_function = "noop", function_owner = self,
-    position = pos, scale = sc, width = 0, height = math.floor(h * U),
-    font_size = math.floor(h * U * 0.62), font_color = color or CREAM, color = CLEAR,
+    position = pos, scale = sc, width = w * U, height = math.floor(h * U * 1.1),
+    font_size = fs, font_color = color or CREAM,
+    color = PLATE, hover_color = PLATE, press_color = PLATE,
   })
 end
 
@@ -942,7 +948,8 @@ function decal(name, url, x, z, w, h)
   local top = isModel() and (MODEL_TOP + 0.012) / s.y or (0.5 + 0.012 / s.y)
   return {
     name = name, url = url,
-    position = { x / s.x, top, -z / s.z },
+    -- decals usam o x espelhado em relação aos botões
+    position = { -x / s.x, top, -z / s.z },
     rotation = DECAL_ROT,
     scale = { w / s.x, h / s.z, 1 },
   }
