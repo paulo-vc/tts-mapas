@@ -203,6 +203,8 @@ local EN = {
   ["Modo sobrevivência"] = "Survival mode",
   ["Névoa criada: %.1f x %.1f"] = "Fog created: %.1f x %.1f",
   ["O TTS não criou a zona de névoa."] = "TTS did not create the fog zone.",
+  ["Revelador: %s, alcance %s, cor %s"] = "Revealer: %s, range %s, color %s",
+  ["O TTS não informou a revelação deste objeto."] = "TTS did not report this object's reveal settings.",
 }
 
 function tr(s)
@@ -644,7 +646,23 @@ end
 function applyReveal(o, v)
   o.memo = JSON.encode(v)
   o.addTag(TAG_REVEAL)
-  o.setFogOfWarReveal({ reveal = true, color = "Black", range = v.range, fov = v.angle, fov_offset = v.rot })
+  -- 1º só os campos documentados (liga o círculo); 2º o cone, à parte, para não derrubar o círculo
+  -- se esta versão do TTS não aceitar fov/fov_offset.
+  o.setFogOfWarReveal({ reveal = true, color = "All", range = v.range })
+  if v.angle < 360 or (v.rot or 0) ~= 0 then
+    pcall(function() o.setFogOfWarReveal({ fov = v.angle, fov_offset = v.rot }) end)
+  end
+end
+
+-- Mostra no chat o que o TTS registrou para o revelador (ajuda a diagnosticar).
+function reportReveal(c, o)
+  local ok, r = pcall(o.getFogOfWarReveal)
+  if ok and type(r) == "table" then
+    say(c, string.format(tr("Revelador: %s, alcance %s, cor %s"),
+      tostring(r.reveal), tostring(r.range), tostring(r.color)))
+  else
+    say(c, tr("O TTS não informou a revelação deste objeto."))
+  end
 end
 
 function removeReveal(o)
@@ -912,8 +930,12 @@ function v_spawn(_, c)
     callback_function = function(o)
       o.setName(tr("Revelador"))
       o.setColorTint({ 0.85, 0.65, 0.2 })
-      applyReveal(o, visionOf(o))
-      build()
+      -- espera a peça assentar antes de ligar a revelação
+      Wait.frames(function()
+        applyReveal(o, visionOf(o))
+        reportReveal(c, o)
+        build()
+      end, 10)
     end,
   })
   say(c, tr("Revelador criado no centro do mapa. Arraste para onde quiser."))
@@ -921,7 +943,10 @@ end
 
 function v_reveal(_, c)
   if not isGM(c) then return end
-  eachSelected(c, function(o) applyReveal(o, visionOf(o)) end)
+  eachSelected(c, function(o)
+    applyReveal(o, visionOf(o))
+    reportReveal(c, o)
+  end)
   build()
 end
 
