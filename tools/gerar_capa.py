@@ -1,7 +1,8 @@
-"""Gera assets/capa.jpg: a imagem de capa da Steam Workshop (1024 x 1024).
+"""Gera as capas da Steam Workshop (1024 x 1024): assets/capa.jpg (pt) e assets/cover_en.jpg (en).
 
 Uso: python tools/gerar_capa.py [pt|en]   (precisa de pillow, numpy e lupa)
-A placa é desenhada a partir do layout real de Atlas.lua (mesmos botões, cores e posições).
+A placa é desenhada a partir do layout real de Atlas.lua: mesmos botões, cores, posições e miniaturas.
+As imagens de mapa nas miniaturas são exemplos gerados aqui, só para a capa.
 """
 import sys
 from pathlib import Path
@@ -14,7 +15,7 @@ ROOT = Path(__file__).resolve().parent.parent
 LANG = sys.argv[1] if len(sys.argv) > 1 else "pt"
 SIZE = 1024
 FONTS = Path("C:/Windows/Fonts")
-rng = np.random.default_rng(3)
+INNER_W, INNER_D, RIM = 10.0, 15.0, 0.4
 
 
 def font(name, size):
@@ -24,137 +25,152 @@ def font(name, size):
         return ImageFont.load_default()
 
 
-def noise(h, w, cy, cx):
+def noise(rng, h, w, cy, cx):
     small = (rng.random((cy, cx)) * 255).astype(np.uint8)
     return np.asarray(Image.fromarray(small).resize((w, h), Image.BICUBIC), np.float32) / 255
 
 
-# ---------------------------------------------------------------- placa vista de cima
+# ---------------------------------------------------------------- mapas de exemplo
+def sample_map(seed, kind, w=360, h=240):
+    rng = np.random.default_rng(seed)
+    n = noise(rng, h, w, 5, 7) * 0.7 + noise(rng, h, w, 24, 34) * 0.3
+    if kind == "dungeon":
+        img = np.zeros((h, w, 3), np.float32) + np.array([38, 34, 32], np.float32)
+        im = Image.fromarray(img.astype(np.uint8)); d = ImageDraw.Draw(im)
+        rooms = [(30, 30, 130, 100), (190, 40, 320, 120), (60, 140, 170, 210), (220, 150, 330, 215)]
+        for x0, y0, x1, y1 in rooms:
+            d.rectangle([x0, y0, x1, y1], fill=(168, 152, 128))
+            for gx in range(x0, x1, 12):
+                d.line([gx, y0, gx, y1], fill=(140, 126, 104))
+            for gy in range(y0, y1, 12):
+                d.line([x0, gy, x1, gy], fill=(140, 126, 104))
+        for a, b in [((130, 65), (190, 65)), ((110, 100), (110, 140)), ((260, 120), (260, 150)), ((170, 180), (220, 180))]:
+            d.line([a, b], fill=(168, 152, 128), width=16)
+        return im
+    if kind == "sea":
+        land = n > 0.55
+        img = np.where(land[..., None], np.array([118, 140, 82]) * (0.8 + 0.4 * n[..., None]),
+                       np.array([46, 92, 128]) * (0.8 + 0.4 * n[..., None]))
+    elif kind == "forest":
+        img = np.array([52, 88, 48]) * (0.6 + 0.7 * n[..., None])
+        path = np.abs(np.linspace(-1, 1, w)[None, :] - 0.3 * np.sin(np.linspace(0, 6, h))[:, None]) < 0.06
+        img[path] = [150, 124, 86]
+    elif kind == "desert":
+        img = np.array([196, 160, 104]) * (0.8 + 0.35 * n[..., None])
+    elif kind == "snow":
+        img = np.array([214, 222, 230]) * (0.8 + 0.25 * n[..., None])
+    else:  # taverna / cidade
+        img = np.array([132, 98, 66]) * (0.85 + 0.25 * n[..., None])
+        im = Image.fromarray(np.clip(img, 0, 255).astype(np.uint8)); d = ImageDraw.Draw(im)
+        for i in range(0, w, 30):
+            d.line([i, 0, i, h], fill=(104, 76, 50), width=2)
+        for x0, y0 in [(40, 40), (220, 50), (60, 150), (230, 150)]:
+            d.ellipse([x0, y0, x0 + 60, y0 + 50], fill=(92, 60, 34), outline=(60, 40, 22), width=3)
+        return im
+    return Image.fromarray(np.clip(img, 0, 255).astype(np.uint8)).filter(ImageFilter.SMOOTH)
+
+
+# ---------------------------------------------------------------- placa a partir do layout real
 def board_image(px=80):
     L = lupa.LuaRuntime()
-    L.execute('''BTNS = {}
+    L.execute('''BTNS = {}; DECALS = {}
     self = { getScale=function() return {x=1,y=1,z=1} end, getCustomObject=function() return {mesh="m"} end,
-      createButton=function(t) t.kind="b"; table.insert(BTNS,t) end,
-      createInput=function(t) t.kind="i"; table.insert(BTNS,t) end,
-      clearButtons=function() BTNS={} end, clearInputs=function() end }
+      createButton=function(t) table.insert(BTNS,t) end, clearButtons=function() BTNS={} end,
+      setDecals=function(d) DECALS=d end }
     function getObjectsWithTag() return {} end
     Global={setVectorLines=function() end}; Grid={}''')
     L.execute((ROOT / "Atlas.lua").read_text(encoding="utf-8"))
     names = {
-        "pt": ["Masmorra do Rei Caído", "Taverna do Javali", "Floresta Sombria", "Porto de Valdren",
-               "Torre do Arquimago", "Minas de Karak", "Ruínas do Templo"],
-        "en": ["Fallen King's Crypt", "Boar's Head Tavern", "Shadow Forest", "Port of Valdren",
-               "Archmage's Tower", "Mines of Karak", "Temple Ruins"],
+        "pt": ["Cripta do Rei", "Taverna do Javali", "Floresta Sombria", "Porto de Valdren", "Dunas de Sal", "Pico Gelado"],
+        "en": ["King's Crypt", "Boar's Head Tavern", "Shadow Forest", "Port of Valdren", "Salt Dunes", "Frozen Peak"],
     }[LANG]
-    folder = "Ato 1" if LANG == "pt" else "Act 1"
-    L.execute(f'''D.lang = "{LANG}"
-    D.folders = {{"{folder}"}}
-    D.maps = {{ {{name="{names[0]}", url="x", fit="caber", saved={{}}}},
-               {{name="{names[1]}", url="x", fit="mesa"}},
-               {{name="{names[2]}", url="x", fit="mesa", saved={{}}}},
-               {{name="{names[3]}", url="x", fit="mesa"}},
-               {{name="{names[4]}", url="x", fit="mesa", saved={{}}}},
-               {{name="{names[5]}", url="x", fit="mesa"}},
-               {{name="{names[6]}", url="x", fit="mesa"}},
-               {{name="x", url="x", fit="mesa", folder="{folder}"}} }}
-    D.current = 1; S.tab = "mapas"; build()''')
+    maps = ",".join(f'{{name="{n}", url="u{i}", fit="mesa"{", saved={}" if i in (0, 3) else ""}}}'
+                    for i, n in enumerate(names))
+    L.execute(f'D.lang = "{LANG}"; D.maps = {{ {maps} }}; D.current = 1; S.sel = 3; S.tab = "mapas"; build()')
 
-    inner_w, inner_d, rim = 9.0, 11.8, 0.4
-    W, H = int((inner_w + 2 * rim) * px), int((inner_d + 2 * rim) * px)
     tex = Image.open(ROOT / "assets" / "atlas.png").convert("RGB")
     t = tex.width
+    leather = tex.crop((int(0.02 * t), int(0.02 * t), int(0.48 * t), int(0.48 * t)))
     wood = tex.crop((int(0.02 * t), int(0.52 * t), int(0.48 * t), int(0.98 * t)))
-    parch = tex.crop((int(0.02 * t), int(0.02 * t), int(0.48 * t), int(0.48 * t)))
     brass = tex.crop((int(0.52 * t), int(0.02 * t), int(0.98 * t), int(0.48 * t)))
-
+    W, H = int((INNER_W + 2 * RIM) * px), int((INNER_D + 2 * RIM) * px)
     img = wood.resize((W, H))
-    img.paste(parch.resize((int(inner_w * px), int(inner_d * px))), (int(rim * px), int(rim * px)))
-    d = ImageDraw.Draw(img)
-    # chanfro da moldura
-    r = int(rim * px)
-    d.rectangle([r - 4, r - 4, W - r + 3, r - 1], fill=(60, 36, 18))
-    d.rectangle([r - 4, r - 4, r - 1, H - r + 3], fill=(60, 36, 18))
+    img.paste(leather.resize((int(INNER_W * px), int(INNER_D * px))), (int(RIM * px), int(RIM * px)))
     c = int(0.62 * px)
     for x in (0, W - c):
         for y in (0, H - c):
             img.paste(brass.resize((c, c)), (x, y))
+    img.paste(brass.resize((int(3.2 * px), int(0.3 * px))), (W // 2 - int(1.6 * px), int(0.05 * px)))
+    d = ImageDraw.Draw(img)
+
+    def to_px(x, z_local):  # o script inverte o z (topo do painel = -z local)
+        return (x + INNER_W / 2 + RIM) * px, (INNER_D / 2 + RIM + z_local) * px
 
     def col(cv):
         return tuple(int(cv[i] * 255) for i in (1, 2, 3))
 
+    kinds = ["dungeon", "tavern", "forest", "sea", "desert", "snow"]
+    for k, dc in enumerate(L.eval("DECALS").values()):
+        x, zl = -dc.position[1], dc.position[3]  # decals têm o x espelhado
+        w, h = dc.scale[1] * px, dc.scale[2] * px
+        cx, cy = to_px(x, zl)
+        img.paste(sample_map(k + 3, kinds[k % len(kinds)]).resize((int(w), int(h))), (int(cx - w / 2), int(cy - h / 2)))
+
     for b in L.eval("BTNS").values():
-        x, z = b.position[1], -b.position[3]  # place() inverte o z
-        cx, cy = (x + inner_w / 2 + rim) * px, (inner_d / 2 + rim - z) * px
+        x, zl = b.position[1], b.position[3]
+        cx, cy = to_px(x, zl)
         w, h = (b.width or 0) / 450 * px, (b.height or 0) / 450 * px
-        fs = max(9, int(b.font_size / 450 * px * 0.92))
-        f = font("arialbd.ttf", fs)
-        if b.kind == "i":
-            d.rectangle([cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2], fill=col(b.color))
-            d.text((cx - w / 2 + 10, cy - fs * 0.62), b.label, fill=(150, 128, 98), font=font("arial.ttf", fs))
-            continue
         cv = b.color
-        if w > 0 and (cv[4] is None or cv[4] > 0):
+        if w > 0 and (cv[4] is None or cv[4] > 0.05) and b.label:
             d.rounded_rectangle([cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2], 5, fill=col(cv))
-        tw = d.textlength(b.label, font=f)
-        d.text((cx - tw / 2, cy - fs * 0.62), b.label, fill=col(b.font_color), font=f)
+        if b.label:
+            fs = max(9, int(b.font_size / 450 * px * 0.92))
+            f = font("arialbd.ttf", fs)
+            tw = d.textlength(b.label, font=f)
+            d.text((cx - tw / 2, cy - fs * 0.62), b.label, fill=col(b.font_color), font=f)
     return img
 
 
-# ---------------------------------------------------------------- fundo: pano da mesa
+# ---------------------------------------------------------------- fundo e composição
 def background():
-    base = np.array([96, 22, 26], np.float32)
-    n = noise(SIZE, SIZE, 300, 300) * 0.22 + noise(SIZE, SIZE, 40, 40) * 0.12 + noise(SIZE, SIZE, 6, 6) * 0.10
-    img = base * (0.80 + n)[..., None]
+    rng = np.random.default_rng(3)
+    base = np.array([92, 24, 28], np.float32)
+    n = noise(rng, SIZE, SIZE, 300, 300) * 0.22 + noise(rng, SIZE, SIZE, 40, 40) * 0.12 + noise(rng, SIZE, SIZE, 6, 6) * 0.1
+    img = base * (0.82 + n)[..., None]
     y, x = np.mgrid[0:SIZE, 0:SIZE].astype(np.float32) / SIZE
-    vig = 1 - 0.75 * ((x - 0.5) ** 2 + (y - 0.55) ** 2)
-    img *= np.clip(vig, 0.35, 1)[..., None]
+    img *= np.clip(1 - 0.8 * ((x - 0.5) ** 2 + (y - 0.58) ** 2), 0.35, 1)[..., None]
     return Image.fromarray(np.clip(img, 0, 255).astype(np.uint8))
 
 
 def perspective_coeffs(src, dst):
-    """Coeficientes para Image.transform(PERSPECTIVE) levando dst -> src."""
     m = []
     for (x, y), (u, v) in zip(dst, src):
         m.append([x, y, 1, 0, 0, 0, -u * x, -u * y])
         m.append([0, 0, 0, x, y, 1, -v * x, -v * y])
-    a = np.array(m, np.float64)
-    b = np.array(src, np.float64).reshape(8)
-    return np.linalg.solve(a, b).tolist()
+    return np.linalg.solve(np.array(m, np.float64), np.array(src, np.float64).reshape(8)).tolist()
 
 
 def main():
     canvas = background()
     board = board_image()
     bw, bh = board.size
-
-    # Placa inclinada, como vista da cadeira do mestre
-    dst = [(300, 300), (724, 300), (840, 985), (184, 985)]
+    dst = [(318, 262), (706, 262), (842, 1000), (182, 1000)]
     coeffs = perspective_coeffs([(0, 0), (bw, 0), (bw, bh), (0, bh)], dst)
     warped = board.convert("RGBA").transform((SIZE, SIZE), Image.PERSPECTIVE, coeffs, Image.BICUBIC)
-
-    # sombra no pano
     shadow = Image.new("L", (SIZE, SIZE), 0)
-    ImageDraw.Draw(shadow).polygon([(p[0] + 18, p[1] + 24) for p in dst], fill=170)
-    shadow = shadow.filter(ImageFilter.GaussianBlur(22))
-    canvas.paste((20, 6, 8), (0, 0), shadow)
+    ImageDraw.Draw(shadow).polygon([(p[0] + 16, p[1] + 22) for p in dst], fill=180)
+    canvas.paste((18, 6, 8), (0, 0), shadow.filter(ImageFilter.GaussianBlur(22)))
     canvas.paste(warped, (0, 0), warped)
 
-    # mapa enrolado na borda de cima da placa
     d = ImageDraw.Draw(canvas)
-    d.rounded_rectangle([318, 270, 706, 302], 14, fill=(226, 204, 158), outline=(150, 120, 70), width=2)
-    for x0 in (296, 704):
-        d.rounded_rectangle([x0, 264, x0 + 24, 308], 8, fill=(190, 140, 50), outline=(110, 78, 24), width=2)
-
-    # Título
     title = "Atlas do Mestre" if LANG == "pt" else "Game Master's Atlas"
-    sub = "Mapas  ·  Grade  ·  Névoa de guerra" if LANG == "pt" else "Maps  ·  Grid  ·  Fog of war"
+    sub = "Mapas  ·  Miniaturas  ·  Grade" if LANG == "pt" else "Maps  ·  Thumbnails  ·  Grid"
     ft = font("georgiab.ttf", 96 if LANG == "pt" else 84)
     fs = font("georgia.ttf", 38)
     tw = d.textlength(title, font=ft)
-    d.text(((SIZE - tw) / 2, 58), title, font=ft, fill=(242, 205, 120),
-           stroke_width=5, stroke_fill=(40, 12, 10))
+    d.text(((SIZE - tw) / 2, 50), title, font=ft, fill=(242, 205, 120), stroke_width=5, stroke_fill=(36, 12, 10))
     sw = d.textlength(sub, font=fs)
-    d.text(((SIZE - sw) / 2, 178), sub, font=fs, fill=(240, 226, 196), stroke_width=3, stroke_fill=(40, 12, 10))
+    d.text(((SIZE - sw) / 2, 168), sub, font=fs, fill=(240, 226, 196), stroke_width=3, stroke_fill=(36, 12, 10))
 
     out = ROOT / "assets" / ("capa.jpg" if LANG == "pt" else "cover_en.jpg")
     canvas.convert("RGB").save(out, quality=90, optimize=True)
