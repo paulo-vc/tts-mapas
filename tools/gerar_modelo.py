@@ -3,9 +3,9 @@
 Uso: python tools/gerar_modelo.py   (precisa de pillow e numpy)
 
 O modelo é feito em unidades do TTS, para ser usado em escala 1:
-  - tampo de pergaminho 9 x 11.8, com o topo em y = 0.30 (onde ficam os botões)
-  - moldura de madeira em volta, cantoneiras de latão, pés
-  - um mapa enrolado com ponteiras de latão na borda de cima (-z, que é o topo do painel no TTS)
+  - tampo de couro ardósia 10 x 15, com o topo em y = 0.30 (onde ficam os botões e as miniaturas)
+  - moldura de nogueira escura, cantoneiras de latão, pés
+  - plaqueta de latão na borda de cima (-z, que é o topo do painel no TTS)
 Os valores precisam bater com BOARD em Atlas.lua.
 """
 import math
@@ -14,7 +14,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 
-INNER_W, INNER_D = 9.0, 11.8
+INNER_W, INNER_D = 10.0, 15.0
 TOP_Y = 0.30
 RIM_W, RIM_H = 0.40, 0.14
 OUT = Path(__file__).resolve().parent.parent / "assets"
@@ -23,7 +23,7 @@ rng = np.random.default_rng(11)
 # Regiões da textura (u0, v0, u1, v1)
 WOOD = (0.02, 0.02, 0.48, 0.48)
 DARK = (0.52, 0.02, 0.98, 0.48)
-PARCH = (0.02, 0.52, 0.48, 0.98)
+LEATHER = (0.02, 0.52, 0.48, 0.98)
 BRASS = (0.52, 0.52, 0.98, 0.98)
 
 
@@ -87,8 +87,8 @@ def build_mesh():
     m = Mesh()
     hw, hd = INNER_W / 2, INNER_D / 2
     ow, od = hw + RIM_W, hd + RIM_W
-    # Corpo: laterais em madeira escura, topo em pergaminho
-    m.box(-ow, ow, 0.0, TOP_Y, -od, od, DARK, top=PARCH)
+    # Corpo: laterais em nogueira escura, topo em couro
+    m.box(-ow, ow, 0.0, TOP_Y, -od, od, DARK, top=LEATHER)
     # Moldura
     ry0, ry1 = TOP_Y, TOP_Y + RIM_H
     m.box(-ow, ow, ry0, ry1, hd, od, WOOD)
@@ -107,11 +107,12 @@ def build_mesh():
         for sz in (-1, 1):
             x, z = sx * (ow - f / 2 - 0.15), sz * (od - f / 2 - 0.15)
             m.box(x - f / 2, x + f / 2, -0.14, 0.0, z - f / 2, z + f / 2, DARK)
-    # Mapa enrolado na borda de cima, com ponteiras de latão
-    sz = -(od + 0.32)
-    m.cylinder_x(-hw + 0.3, hw - 0.3, 0.30, sz, 0.30, PARCH)
-    m.cylinder_x(-hw + 0.05, -hw + 0.3, 0.30, sz, 0.36, BRASS)
-    m.cylinder_x(hw - 0.3, hw - 0.05, 0.30, sz, 0.36, BRASS)
+    # Plaqueta de latão no meio da borda de cima (-z) e frisos de latão nas laterais
+    pw = 3.2
+    m.box(-pw / 2, pw / 2, ry1, ry1 + 0.04, -od + 0.06, -hd - 0.06, BRASS)
+    for sx in (-1, 1):
+        x = sx * (hw + RIM_W / 2)
+        m.box(x - 0.05, x + 0.05, ry1, ry1 + 0.02, -hd + 1.0, hd - 1.0, BRASS)
     return m
 
 
@@ -129,13 +130,14 @@ def wood(h, w, dark, light):
     return d + (l - d) * g[..., None]
 
 
-def parchment(h, w):
-    base = np.array([232, 213, 169], np.float32)
-    mott = smooth_noise(h, w, 8, 8) * 0.10 + smooth_noise(h, w, 40, 40) * 0.05 + smooth_noise(h, w, 200, 200) * 0.03
-    img = base * (0.93 + mott)[..., None]
+def leather(h, w):
+    """Couro cor de ardósia: grão fino e manchas suaves, escurecendo um pouco nas bordas."""
+    base = np.array([46, 50, 58], np.float32)
+    grain = smooth_noise(h, w, 260, 260) * 0.10 + smooth_noise(h, w, 60, 60) * 0.06 + smooth_noise(h, w, 7, 7) * 0.08
+    img = base * (0.92 + grain)[..., None]
     y, x = np.mgrid[0:h, 0:w].astype(np.float32)
     edge = np.minimum(np.minimum(x, w - 1 - x), np.minimum(y, h - 1 - y)) / (0.5 * min(w, h))
-    img *= (0.86 + 0.14 * np.clip(edge * 4, 0, 1))[..., None]
+    img *= (0.80 + 0.20 * np.clip(edge * 5, 0, 1))[..., None]
     return img
 
 
@@ -155,9 +157,9 @@ def build_texture(size=1024):
         c0, c1 = int(u0 * size), int(u1 * size)
         tex[r0:r1, c0:c1] = block(r1 - r0, c1 - c0)
     tex[:, :] = 90
-    put(WOOD, lambda h, w: wood(h, w, (92, 56, 30), (150, 98, 56)))
-    put(DARK, lambda h, w: wood(h, w, (48, 29, 15), (88, 55, 30)))
-    put(PARCH, parchment)
+    put(WOOD, lambda h, w: wood(h, w, (58, 34, 18), (104, 64, 36)))
+    put(DARK, lambda h, w: wood(h, w, (32, 19, 10), (62, 38, 20)))
+    put(LEATHER, leather)
     put(BRASS, brass)
     img = Image.fromarray(np.clip(tex, 0, 255).astype(np.uint8)).filter(ImageFilter.SMOOTH)
     return img

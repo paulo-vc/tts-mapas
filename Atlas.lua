@@ -1,12 +1,11 @@
 --[[
-  Atlas do Mestre v3 — script do objeto.
+  Atlas do Mestre v4 — script do objeto.
 
   Instalação:
     1. Objects > Components > Custom > Model
          Model/Mesh: assets/atlas.obj    Diffuse/Image: assets/atlas.png    (aceite subir para a Cloud)
-         Type: Generic, Material: Wood. Import.
     2. Clique direito no objeto > Scripting > Scripting Editor, cole este arquivo, Save & Play.
-  Funciona também num bloco comum (Objects > Blocks > Square), sem o visual de madeira/pergaminho.
+  Funciona também num bloco comum (Objects > Blocks > Square), sem o visual de madeira e couro.
 ]]
 
 --------------------------------------------------------------------------
@@ -17,23 +16,26 @@ D = {
   maps = {},
   folders = {},
   current = nil,
-  openFolder = nil,
+  lang = "pt",
+  origURL = nil,   -- imagem original da mesa, para o "Resetar tudo"
 }
 
 -- Estado só da sessão
 S = {
-  tab = "mapas", page = 1, newName = "", newUrl = "",
+  tab = "mapas", page = 1, folder = nil, sel = nil,
   pending = nil, calib = nil, showingArea = false,
+  heights = nil, reliefBusy = false, reliefAgain = false,
 }
 
-local ROWS = 8
+local THUMB_COLS, THUMB_ROWS = 2, 3
+local THUMB_W, THUMB_H = 3.9, 2.35   -- miniaturas, mais ou menos 3:2
 local MOVE_STEP = 0.5
 local ZOOM_STEP = 1.1
 local GRID_STEP = 0.25
-local FOG_HEIGHT = 4
-local U = 450                 -- unidades de botão por unidade do mundo
-local INNER = { w = 9, d = 11.8 } -- tampo de pergaminho do modelo (tools/gerar_modelo.py)
-local MODEL_TOP = 0.30          -- altura do tampo no modelo
+local U = 450                          -- unidades de botão por unidade do mundo
+local INNER = { w = 10, d = 15 }       -- tampo do modelo (tools/gerar_modelo.py)
+local MODEL_TOP = 0.30                 -- altura do tampo no modelo
+local DECAL_ROT = { 90, 180, 0 }       -- se as miniaturas aparecerem de cabeça para baixo, use { 90, 0, 0 }
 
 local TABLE_FRACTION = {
   Table_RPG = { 0.80, 0.69 },
@@ -41,170 +43,87 @@ local TABLE_FRACTION = {
   Table_Custom_Square = { 0.95, 0.95 },
 }
 
+-- Cores da grade e espessuras (inspirado no 3D Gridlines de stom)
+local GRID_COLORS = {
+  { "Preto", "Black", { 0.05, 0.05, 0.05 } },
+  { "Cinza escuro", "Dark grey", { 0.2, 0.2, 0.2 } },
+  { "Cinza", "Grey", { 0.45, 0.45, 0.45 } },
+  { "Branco", "White", { 1, 1, 1 } },
+  { "Marrom", "Brown", { 0.44, 0.23, 0.09 } },
+  { "Vermelho", "Red", { 0.86, 0.1, 0.09 } },
+  { "Laranja", "Orange", { 0.96, 0.39, 0.11 } },
+  { "Amarelo", "Yellow", { 0.9, 0.9, 0.17 } },
+  { "Verde", "Green", { 0.19, 0.7, 0.17 } },
+  { "Azul", "Blue", { 0.12, 0.53, 1 } },
+}
+local GRID_STROKES = { 0.01, 0.02, 0.03, 0.05, 0.08, 0.12 }
+
 --------------------------------------------------------------------------
--- Idioma: D.lang = "pt" ou "en". tr() troca o texto em português pelo inglês.
+-- Idioma: tr() troca o texto em português pelo inglês quando D.lang == "en".
 --------------------------------------------------------------------------
 local EN = {
   ["Atlas do Mestre"] = "Game Master's Atlas",
-  ["Atlas: revelar névoa (segure)"] = "Atlas: reveal fog (hold)",
-  ["Atlas: cobrir névoa (segure)"] = "Atlas: cover fog (hold)",
+  ["Mapas"] = "Maps", ["Imagem"] = "Image", ["Grade"] = "Grid", ["Área"] = "Area",
   ["Só o mestre (host/admin) pode usar o Atlas."] = "Only the game master (host/admin) can use the Atlas.",
-  ["Mapa: "] = "Map: ",
-  ["Mapa "] = "Map ",
-  ["Selecione um token ou prop primeiro (clique nele, ou arraste uma caixa)."] = "Select a token or prop first (click it, or drag a box).",
-  ["Ligue a névoa primeiro (aba Névoa)."] = "Turn the fog on first (Fog tab).",
-  ["Cole o link da imagem (.jpg ou .png)."] = "Paste the image link (.jpg or .png).",
+  ["Mapa ativo: "] = "Active map: ", ["Nenhum mapa ativo"] = "No active map", ["Nenhum mapa ativo."] = "No active map.",
+  ["Mapa "] = "Map ", ["Mapa: "] = "Map: ",
+  ["+ Arquivo do PC"] = "+ File from PC", ["Link"] = "Link",
+  ["Escolher uma imagem do computador (sobe para a sua Steam Cloud)"] = "Pick an image from your computer (uploads to your Steam Cloud)",
+  ["Adicionar por link da web (.jpg / .png)"] = "Add by web link (.jpg / .png)",
+  ["Pasta: "] = "Folder: ", ["Todos os mapas"] = "All maps", ["Sem pasta"] = "No folder",
+  ["Escolher pasta para ver"] = "Choose a folder to view", ["+ Pasta"] = "+ Folder",
+  ["Nome da nova pasta"] = "New folder name", ["Já existe uma pasta com esse nome."] = "A folder with that name already exists.",
+  ["Nenhum mapa aqui. Use + Arquivo do PC."] = "No maps here. Use + File from PC.",
+  ["Selecione um mapa para aplicar, renomear ou mover."] = "Select a map to apply, rename or move.",
+  ["Aplicar na mesa"] = "Apply to table", ["Renomear"] = "Rename", ["Mover"] = "Move", ["Apagar"] = "Delete",
+  ["Novo nome do mapa"] = "New map name", ["Mover para qual pasta?"] = "Move to which folder?",
+  ["Apagar o mapa \""] = "Delete the map \"", ["\"? (a imagem continua na sua Cloud)"] = "\"? (the image stays in your Cloud)",
+  ["Nome do mapa"] = "Map name",
   ["Novo mapa: clique direito > Custom"] = "New map: right-click > Custom",
-  ["Clique com o botão direito no tile no meio da mesa > Custom > escolha a imagem > Import. Aceite subir para a Cloud."] = "Right-click the tile in the middle of the table > Custom > pick the image > Import. Accept the Cloud upload.",
-  ["Mapa adicionado!"] = "Map added!",
-  ["Tempo esgotado esperando a imagem. Tente de novo."] = "Timed out waiting for the image. Try again.",
-  ["Digite o nome da pasta no campo Nome."] = "Type the folder name in the Name field.",
-  ["Já existe uma pasta com esse nome."] = "A folder with that name already exists.",
-  ["Nenhum mapa ativo."] = "No active map.",
-  ["Estado de \""] = "State of \"",
-  ["\" salvo ("] = "\" saved (",
-  [" objetos)."] = " objects).",
-  ["Este mapa ainda não tem estado salvo."] = "This map has no saved state yet.",
-  ["Ajustes funcionam nos modos Caber e Preencher."] = "Adjustments work in Fit and Fill modes.",
-  ["Ligue a névoa primeiro."] = "Turn the fog on first.",
-  [": não é mais "] = ": no longer ",
-  ["revelador"] = "a revealer",
-  ["visão em cone"] = "cone vision",
-  ["Selecione objetos primeiro (arraste uma caixa ou Ctrl+clique)."] = "Select objects first (drag a box or Ctrl+click).",
-  [": fixo"] = ": pinned",
-  [": não é mais fixo"] = ": no longer pinned",
-  ["Mire o mouse no canto "] = "Point the mouse at corner ",
-  [" da área... (3s)"] = " of the area... (3s)",
-  ["Carregue um mapa na aba Mapas."] = "Load a map in the Maps tab.",
-  ["Mapa ativo: "] = "Active map: ",
-  ["Nenhum mapa ativo"] = "No active map",
-  ["Mapas"] = "Maps",
-  ["Imagem"] = "Image",
-  ["Grade"] = "Grid",
-  ["Névoa"] = "Fog",
-  ["Área"] = "Area",
-  ["Nome do mapa ou da pasta"] = "Map or folder name",
-  ["Link da imagem (.jpg / .png)"] = "Image link (.jpg / .png)",
-  ["+ Link"] = "+ Link",
-  ["Adiciona o mapa do link"] = "Adds the map from the link",
-  ["+ Arquivo do PC"] = "+ File from PC",
-  ["Escolher uma imagem do computador"] = "Pick an image from your computer",
-  ["+ Pasta"] = "+ Folder",
-  ["Cria uma pasta com o nome digitado"] = "Creates a folder with the typed name",
-  ["Mover mapa p/ cá"] = "Move map here",
-  ["Move o mapa ativo para a pasta aberta"] = "Moves the active map into the open folder",
-  ["Pasta: "] = "Folder: ",
-  ["Seus mapas"] = "Your maps",
-  ["< Voltar"] = "< Back",
-  ["Clique para abrir"] = "Click to open",
-  ["Clique de novo para apagar a pasta"] = "Click again to delete the folder",
-  ["Apagar pasta"] = "Delete folder",
-  ["Clique para carregar   |   * = tem estado salvo"] = "Click to load   |   * = has saved state",
-  ["Clique de novo para apagar"] = "Click again to delete",
-  ["Apagar mapa"] = "Delete map",
-  ["Nenhum mapa ainda. Adicione um acima."] = "No maps yet. Add one above.",
-  ["Salvar estado"] = "Save state",
+  ["Clique com o botão direito no tile no meio da mesa > Custom > escolha a imagem > Import. Aceite subir para a Cloud."] =
+    "Right-click the tile in the middle of the table > Custom > pick the image > Import. Accept the Cloud upload.",
+  ["Mapa adicionado!"] = "Map added!", ["Tempo esgotado esperando a imagem. Tente de novo."] = "Timed out waiting for the image. Try again.",
+  ["Cole o link da imagem (.jpg ou .png)"] = "Paste the image link (.jpg or .png)",
+  ["Salvar estado"] = "Save state", ["Restaurar"] = "Restore", ["Confirmar?"] = "Confirm?",
   ["Guarda a posição dos props e tokens neste mapa"] = "Saves where the props and tokens are on this map",
-  ["Restaurar"] = "Restore",
-  ["Confirmar?"] = "Confirm?",
   ["Volta ao último estado salvo"] = "Goes back to the last saved state",
-  ["Como exibir"] = "How to display",
-  ["Na mesa"] = "On table",
-  ["Imagem direto na parte customizável da mesa"] = "Image straight on the table's custom surface",
-  ["Caber"] = "Fit",
-  ["Imagem inteira, mantendo a proporção"] = "Whole image, keeping proportions",
-  ["Preencher"] = "Fill",
-  ["Cobre a área toda"] = "Covers the whole area",
-  ["Ajuste fino (Caber / Preencher)"] = "Fine tuning (Fit / Fill)",
-  ["Zoom -"] = "Zoom -",
-  ["Zoom +"] = "Zoom +",
-  ["Girar 90"] = "Rotate 90",
-  ["Resetar ajuste"] = "Reset adjustment",
-  ["Grade: ligada"] = "Grid: on",
-  ["Grade: desligada"] = "Grid: off",
-  ["Encaixe: ligado"] = "Snap: on",
-  ["Encaixe: desligado"] = "Snap: off",
+  ["Estado salvo: "] = "State saved: ", [" objetos."] = " objects.",
+  ["Este mapa ainda não tem estado salvo."] = "This map has no saved state yet.",
+  ["na mesa"] = "on table",
+  ["Carregue um mapa na aba Mapas."] = "Load a map in the Maps tab.",
+  ["Encaixar na mesa"] = "Fit to table",
+  ["A imagem vai direto na parte customizável da mesa (recomendado)"] = "The image goes straight onto the table's custom surface (recommended)",
+  ["Avançado: imagem sobre a área"] = "Advanced: image over the area",
+  ["Caber"] = "Fit", ["Preencher"] = "Fill",
+  ["Imagem inteira, mantendo a proporção"] = "Whole image, keeping proportions", ["Cobre a área toda"] = "Covers the whole area",
+  ["Zoom -"] = "Zoom -", ["Zoom +"] = "Zoom +", ["Girar 90"] = "Rotate 90", ["Resetar ajuste"] = "Reset adjustment",
+  ["Ajustes funcionam nos modos Caber e Preencher."] = "Adjustments work in Fit and Fill modes.",
+  ["Grade: ligada"] = "Grid: on", ["Grade: desligada"] = "Grid: off",
+  ["Encaixe: ligado"] = "Snap: on", ["Encaixe: desligado"] = "Snap: off",
   ["Peças encaixam no centro dos quadrados"] = "Pieces snap to the center of the squares",
-  ["Tamanho do quadrado"] = "Square size",
-  ["Intensidade das linhas"] = "Line strength",
-  ["Mais clara"] = "Lighter",
-  ["Mais escura"] = "Darker",
+  ["Tamanho do quadrado"] = "Square size", ["Cor e espessura"] = "Color and thickness",
+  ["Cor: "] = "Color: ", ["Linha -"] = "Line -", ["Linha +"] = "Line +",
+  ["Mais clara"] = "Lighter", ["Mais escura"] = "Darker",
   ["Alinhar com o desenho do mapa"] = "Align with the map's drawing",
-  ["Névoa: ligada"] = "Fog: on",
-  ["Névoa: desligada"] = "Fog: off",
-  ["Você ("] = "You (",
-  [") enxerga através; os jogadores não."] = ") see through it; players don't.",
-  ["Cobrir tudo"] = "Cover all",
-  ["Revelar tudo"] = "Reveal all",
-  ["Pincel"] = "Brush",
-  ["Revelar"] = "Reveal",
-  ["Revelando..."] = "Revealing...",
-  ["Liga/desliga: revela por onde o mouse passa"] = "On/off: reveals wherever the mouse goes",
-  ["Cobrir"] = "Cover",
-  ["Cobrindo..."] = "Covering...",
-  ["Liga/desliga: cobre por onde o mouse passa"] = "On/off: covers wherever the mouse goes",
-  ["Raio -"] = "Radius -",
-  ["Raio "] = "Radius ",
-  ["Raio +"] = "Radius +",
-  ["Célula -"] = "Cell -",
-  ["Célula "] = "Cell ",
-  ["Célula +"] = "Cell +",
-  ["Atalhos: Options > Game Keys > Atlas"] = "Hotkeys: Options > Game Keys > Atlas",
-  ["Tokens (selecione e clique)"] = "Tokens (select, then click)",
-  ["Revelador"] = "Revealer",
-  ["Limpa a névoa por onde o token passa (permanente)"] = "Clears the fog wherever the token goes (permanent)",
-  ["Visão em cone"] = "Cone vision",
-  ["Modo sobrevivência: só enxerga à frente do token"] = "Survival mode: only sees in front of the token",
-  ["Desmarcar"] = "Unmark",
-  ["Tira o token da névoa"] = "Removes the token from the fog",
-  ["Alcance -"] = "Range -",
-  ["Raio do revelador / alcance do cone"] = "Revealer radius / cone range",
-  ["Raio %.1f  Cone %d"] = "Radius %.1f  Cone %d",
-  ["Alcance +"] = "Range +",
-  ["Ângulo -"] = "Angle -",
-  ["Ângulo "] = "Angle ",
-  ["Ângulo +"] = "Angle +",
-  ["Sobrevivência: ligada"] = "Survival: on",
-  ["Sobrevivência: desligada"] = "Survival: off",
-  ["Tokens com visão em cone só enxergam à frente; a névoa volta atrás deles"] = "Cone-vision tokens only see ahead; the fog returns behind them",
-  ["Girar cone 90"] = "Turn cone 90",
-  ["Se o cone aponta para o lado errado do token"] = "If the cone points the wrong way for this token",
-  [" revelador(es)   "] = " revealer(s)   ",
-  [" com visão"] = " with vision",
-  ["Área do mapa na mesa"] = "Map area on the table",
-  ["calibrada"] = "calibrated",
-  ["automática"] = "automatic",
-  ["Detectar"] = "Detect",
+  ["Seguir relevo: ligado"] = "Follow terrain: on", ["Seguir relevo: desligado"] = "Follow terrain: off",
+  ["As linhas sobem por cima de props e terrenos 3D"] = "Lines climb over 3D props and terrain",
+  ["Calculando relevo..."] = "Calculating terrain...",
+  ["Área do mapa na mesa"] = "Map area on the table", ["calibrada"] = "calibrated", ["automática"] = "automatic",
+  ["Detectar"] = "Detect", ["Calibrar"] = "Calibrate", ["Canto 2..."] = "Corner 2...",
+  ["Mostrar área"] = "Show area", ["Fixar selecionados"] = "Pin selected",
   ["Detecta a área customizável pela própria mesa"] = "Detects the custom area from the table itself",
-  ["Calibrar"] = "Calibrate",
-  ["Canto 2..."] = "Corner 2...",
   ["Clique e mire o mouse no canto da área em 3s"] = "Click, then point the mouse at the area's corner within 3s",
-  ["Mostrar área"] = "Show area",
-  ["Fixar selecionados"] = "Pin selected",
   ["Objetos fixos não trocam com o mapa"] = "Pinned objects don't change with the map",
+  ["Mire o mouse no canto "] = "Point the mouse at corner ", [" da área... (3s)"] = " of the area... (3s)",
+  ["Selecione objetos primeiro (arraste uma caixa ou Ctrl+clique)."] = "Select objects first (drag a box or Ctrl+click).",
+  [": fixo"] = ": pinned", [": não é mais fixo"] = ": no longer pinned",
+  ["Manutenção"] = "Maintenance", ["Resetar tudo"] = "Reset everything",
+  ["Volta a mesa ao padrão; os mapas do Atlas continuam guardados"] = "Returns the table to default; the Atlas maps stay saved",
+  ["Resetar tudo? A imagem da mesa volta ao padrão e as configurações de imagem, grade e área são apagadas. Os mapas continuam no Atlas."] =
+    "Reset everything? The table image goes back to default and the image, grid and area settings are cleared. The maps stay in the Atlas.",
+  ["Tudo resetado. Os mapas continuam no Atlas."] = "Everything reset. The maps stay in the Atlas.",
   ["Idioma"] = "Language",
-  ["Resetar névoa"] = "Reset fog",
-  ["Cobre o mapa todo de novo"] = "Covers the whole map again",
-  ["Sente no Black para ver tudo (mestre)."] = "Sit as Black to see everything (GM).",
-  ["Reveladores (selecione e clique)"] = "Revealers (select, then click)",
-  ["Criar revelador"] = "Create revealer",
-  ["Cria uma peça que revela a névoa em volta dela"] = "Creates a piece that reveals the fog around it",
-  ["Marcar revelador"] = "Make revealer",
-  ["Os objetos selecionados passam a revelar a névoa"] = "Selected objects start revealing the fog",
-  ["Tira a revelação dos objetos selecionados"] = "Stops the selected objects from revealing",
-  ["Alcance "] = "Range ",
-  ["360° = círculo; menos = cone de visão"] = "360° = circle; less = vision cone",
-  ["Girar visão 90"] = "Turn view 90",
-  ["Dicas"] = "Tips",
-  ["Clique direito no revelador > Reveal Fog of War: alcance e cor."] = "Right-click a revealer > Reveal Fog of War: range and color.",
-  ["Modo sobrevivência: clique na névoa > ReHide Objects."] = "Survival mode: click the fog > ReHide Objects.",
-  ["Revelador criado no centro do mapa. Arraste para onde quiser."] = "Revealer created in the middle of the map. Drag it anywhere.",
-  ["O que sai da visão dos reveladores volta a ficar escondido"] = "Anything that leaves the revealers' sight is hidden again",
-  ["Modo sobrevivência"] = "Survival mode",
-  ["Névoa criada: %.1f x %.1f"] = "Fog created: %.1f x %.1f",
-  ["O TTS não criou a zona de névoa."] = "TTS did not create the fog zone.",
-  ["Revelador: %s, alcance %s, cor %s"] = "Revealer: %s, range %s, color %s",
-  ["O TTS não informou a revelação deste objeto."] = "TTS did not report this object's reveal settings.",
+  ["Página "] = "Page ",
 }
 
 function tr(s)
@@ -230,21 +149,33 @@ function onLoad(saved)
     self.setScale({ 1, 1, 1 })
   else
     self.setScale({ INNER.w + 0.8, 0.3, INNER.d + 0.8 })
-    self.setColorTint({ 0.36, 0.23, 0.12 })
+    self.setColorTint({ 0.22, 0.14, 0.08 })
   end
 
-
   Wait.frames(function()
+    cleanupLegacy()
+    if D.origURL == nil then D.origURL = Tables.getCustomURL() or "" end
     if not D.area.manual then autoArea() end
     applyGrid()
-    buildFog()
     build()
   end, 10)
 end
 
 function onSave()
-  captureFog(current())
   return JSON.encode(D)
+end
+
+-- Remove o que versões antigas do Atlas deixavam na mesa (névoa, reveladores).
+function cleanupLegacy()
+  for _, tag in ipairs({ "Fog", "AtlasNevoa" }) do
+    for _, o in ipairs(getObjectsWithTag(tag)) do o.destruct() end
+  end
+  for _, tag in ipairs({ "AtlasRevelador", "AtlasVisao" }) do
+    for _, o in ipairs(getObjectsWithTag(tag)) do
+      o.removeTag(tag)
+      pcall(function() o.setFogOfWarReveal({ reveal = false }) end)
+    end
+  end
 end
 
 --------------------------------------------------------------------------
@@ -263,11 +194,11 @@ function say(color, text)
   end
 end
 
-function isGM(color)
+function gm(color)
   local p = Player[color]
-  if p and (p.host or p.admin) then return true end
+  if p and (p.host or p.admin) then return p end
   say(color, tr("Só o mestre (host/admin) pode usar o Atlas."))
-  return false
+  return nil
 end
 
 function current()
@@ -288,7 +219,7 @@ function inArea(p)
 end
 
 function isOurs(o)
-  return o == self or o.hasTag("MapaTile") or o.hasTag("Fog") or o.hasTag("AtlasNevoa") or o.hasTag("Fixo") or o.hasTag("AtlasMesa")
+  return o == self or o.hasTag("MapaTile") or o.hasTag("Fixo") or o.hasTag("AtlasMesa")
 end
 
 --------------------------------------------------------------------------
@@ -298,10 +229,8 @@ end
 function surfaceY(x, z)
   local tableObj = Tables.getTableObject()
   local hits = Physics.cast({
-    origin = { x = x, y = 60, z = z },
-    direction = { x = 0, y = -1, z = 0 },
-    type = 1,
-    max_distance = 120,
+    origin = { x = x, y = 60, z = z }, direction = { x = 0, y = -1, z = 0 },
+    type = 1, max_distance = 120,
   })
   for _, h in ipairs(hits) do
     if h.hit_object == tableObj then return h.point.y end
@@ -324,9 +253,13 @@ end
 function afterAreaChange()
   showArea()
   local m = current()
-  if m and m.fit ~= "mesa" then showMap(m) else applyGrid() end
-  captureFog(m)
-  buildFog("rebuild")
+  if m and (m.fit == "caber" or m.fit == "preencher") then showMap(m) else applyGrid() end
+end
+
+function showArea()
+  S.showingArea = true
+  drawLines()
+  Wait.time(function() S.showingArea = false; drawLines() end, 6)
 end
 
 --------------------------------------------------------------------------
@@ -345,6 +278,17 @@ function mapTopY()
     return b.center.y + b.size.y / 2
   end
   return D.area.y
+end
+
+-- Troca a imagem da mesa preservando as zonas de mão (como o Map changer da Workshop faz).
+function setTableImage(url)
+  local hands = {}
+  for _, h in ipairs(Hands.getHands()) do table.insert(hands, h.getData()) end
+  Tables.setCustomURL(url)
+  Wait.frames(function()
+    for _, h in ipairs(Hands.getHands()) do h.destruct() end
+    for _, data in ipairs(hands) do spawnObjectData({ data = data }) end
+  end, 1)
 end
 
 -- Caber/Preencher mantendo a proporção, com a base do tile encostada na superfície.
@@ -387,22 +331,23 @@ function spawnTile(m)
 end
 
 function showMap(m)
-  if m.fit == "mesa" then
-    removeTile()
-    Tables.setCustomURL(m.url)
-    applyGrid()
-  else
+  if m.fit == "caber" or m.fit == "preencher" then
     spawnTile(m)
+  else
+    removeTile()
+    setTableImage(m.url)
+    applyGrid()
   end
 end
 
 --------------------------------------------------------------------------
--- Props e tokens
+-- Props e tokens de cada mapa
 --------------------------------------------------------------------------
 function storeObjects(keep)
   local a, list = D.area, {}
   for _, o in ipairs(getObjects()) do
-    if not isOurs(o) and o.type ~= "Fog" and o.type ~= "Scripting" and o.type ~= "Hand" then
+    if not isOurs(o) and o.type ~= "Scripting" and o.type ~= "Hand" and o.type ~= "FogOfWar"
+        and o.type ~= "FogOfWarTrigger" then
       local p = o.getPosition()
       if inArea(p) then
         table.insert(list, { json = o.getJSON(), dx = p.x - a.x, y = p.y - a.y, dz = p.z - a.z })
@@ -421,18 +366,14 @@ function spawnStored(list)
 end
 
 --------------------------------------------------------------------------
--- Troca de mapa, pastas
+-- Mapas, pastas e páginas
 --------------------------------------------------------------------------
 function switchTo(i)
   local old = current()
-  if old then
-    captureFog(old)
-    old.objects = storeObjects()
-  end
+  if old then old.objects = storeObjects() end
   D.current = i
   local m = D.maps[i]
   showMap(m)
-  buildFog("rebuild")
   Wait.frames(function()
     spawnStored(m.objects)
     m.objects = {}
@@ -446,36 +387,52 @@ function addMap(name, url)
   if name == "" then name = tr("Mapa ") .. (#D.maps + 1) end
   table.insert(D.maps, {
     name = name, url = url, fit = "mesa", zoom = 1, ox = 0, oz = 0, rot = 0,
-    objects = {}, folder = D.openFolder,
+    objects = {}, folder = S.folder,
   })
-  S.newName, S.newUrl = "", ""
-  S.page = math.ceil(#getEntries() / ROWS)
-  switchTo(#D.maps)
+  S.sel = #D.maps
+  S.page = math.max(1, math.ceil(#visibleMaps() / (THUMB_COLS * THUMB_ROWS)))
+  build()
 end
 
-function getEntries()
-  local e = {}
-  if D.openFolder then
-    table.insert(e, { kind = "back" })
-    for i, m in ipairs(D.maps) do
-      if m.folder == D.openFolder then table.insert(e, { kind = "map", i = i }) end
-    end
-  else
-    for fi, f in ipairs(D.folders) do
-      local n = 0
-      for _, m in ipairs(D.maps) do if m.folder == f then n = n + 1 end end
-      table.insert(e, { kind = "folder", name = f, fi = fi, count = n })
-    end
-    for i, m in ipairs(D.maps) do
-      if not m.folder then table.insert(e, { kind = "map", i = i }) end
-    end
+-- Mapas da pasta que está sendo vista (nil = todos).
+function visibleMaps()
+  local list = {}
+  for i, m in ipairs(D.maps) do
+    if S.folder == nil or m.folder == S.folder then table.insert(list, i) end
   end
-  return e
+  return list
+end
+
+function folderOptions(includeAll)
+  local opts = {}
+  if includeAll then table.insert(opts, tr("Todos os mapas")) end
+  table.insert(opts, tr("Sem pasta"))
+  for _, f in ipairs(D.folders) do table.insert(opts, f) end
+  return opts
+end
+
+-- Texto escolhido no diálogo -> nome da pasta (nil = sem pasta); o segundo valor diz se foi "todos".
+function folderFromOption(text)
+  if text == tr("Todos os mapas") then return nil, true end
+  if text == tr("Sem pasta") then return nil, false end
+  return text, false
 end
 
 --------------------------------------------------------------------------
--- Grade: linhas por cima do mapa + encaixe nativo do TTS
+-- Grade: linhas por cima do mapa (planas ou seguindo o relevo) + encaixe nativo do TTS
 --------------------------------------------------------------------------
+function gridOf(m)
+  m.grid = m.grid or {}
+  local g = m.grid
+  if g.size == nil then g.size = 1 end
+  if g.snap == nil then g.snap = true end
+  g.ox, g.oz = g.ox or 0, g.oz or 0
+  g.alpha = g.alpha or 0.6
+  g.color = g.color or 1
+  g.stroke = g.stroke or 3
+  return g
+end
+
 function applyGrid()
   local m = current()
   local g = m and m.grid
@@ -487,207 +444,131 @@ function applyGrid()
     Grid.offsetX = a.x - a.w / 2 + (g.ox or 0)
     Grid.offsetY = a.z - a.d / 2 + (g.oz or 0)
     Grid.snapping = (g.snap ~= false) and 3 or 1
+    if g.relief and not S.heights then requestRelief() end
   else
     Grid.snapping = 1
   end
   drawLines()
 end
 
-function drawLines()
-  local lines = {}
+-- Cruzamentos da grade (inclui o deslocamento de alinhamento).
+function gridNodes(g)
   local a = D.area
   local x0, x1 = a.x - a.w / 2, a.x + a.w / 2
   local z0, z1 = a.z - a.d / 2, a.z + a.d / 2
+  local xs, zs = {}, {}
+  local x = x0 + (g.ox or 0)
+  while x <= x1 + 0.001 do table.insert(xs, x); x = x + g.size end
+  local z = z0 + (g.oz or 0)
+  while z <= z1 + 0.001 do table.insert(zs, z); z = z + g.size end
+  return xs, zs
+end
+
+-- Relevo: um raio por cruzamento da grade, calculado aos poucos (corrotina) para não travar.
+function requestRelief()
+  S.heights = nil
+  if S.reliefBusy then S.reliefAgain = true return end
+  S.reliefBusy = true
+  startLuaCoroutine(self, "reliefJob")
+end
+
+function reliefJob()
+  local m = current()
+  local g = m and m.grid
+  if not (g and g.on and g.relief) then
+    S.reliefBusy = false
+    return 1
+  end
+  local xs, zs = gridNodes(g)
+  local base = mapTopY()
+  local tile = getTile()
+  local tableObj = Tables.getTableObject()
+  local heights = {}
+  for i, x in ipairs(xs) do
+    heights[i] = {}
+    for j, z in ipairs(zs) do
+      local h = base
+      local hits = Physics.cast({
+        origin = { x = x, y = base + 25, z = z }, direction = { x = 0, y = -1, z = 0 },
+        type = 1, max_distance = 40,
+      })
+      for _, hit in ipairs(hits) do
+        local o = hit.hit_object
+        if o == tile or o == tableObj or (o.grid_projection and not isOurs(o)) then
+          h = math.max(base, hit.point.y)
+          break
+        end
+      end
+      heights[i][j] = h + 0.03
+    end
+    if i % 4 == 0 then coroutine.yield(0) end
+  end
+  S.heights = heights
+  S.reliefBusy = false
+  drawLines()
+  build()
+  if S.reliefAgain then
+    S.reliefAgain = false
+    requestRelief()
+  end
+  return 1
+end
+
+function drawLines()
+  local lines = {}
+  local a = D.area
   local m = current()
   local g = m and m.grid
   if g and g.on then
-    local y = mapTopY() + 0.02
-    local col = { 0.1, 0.07, 0.04, g.alpha or 0.6 }
-    local x = x0 + (g.ox or 0)
-    while x <= x1 + 0.001 do
-      table.insert(lines, { points = { { x, y, z0 }, { x, y, z1 } }, color = col, thickness = 0.03 })
-      x = x + g.size
+    local c = GRID_COLORS[g.color or 1][3]
+    local col = { c[1], c[2], c[3], g.alpha or 0.6 }
+    local thick = GRID_STROKES[g.stroke or 3]
+    local xs, zs = gridNodes(g)
+    local flat = mapTopY() + 0.02
+    local hs = (g.relief and S.heights and #S.heights == #xs) and S.heights or nil
+    local function y(i, j) return hs and hs[i][j] or flat end
+    for i, x in ipairs(xs) do
+      local pts = {}
+      for j, z in ipairs(zs) do table.insert(pts, { x, y(i, j), z }) end
+      table.insert(lines, { points = pts, color = col, thickness = thick })
     end
-    local z = z0 + (g.oz or 0)
-    while z <= z1 + 0.001 do
-      table.insert(lines, { points = { { x0, y, z }, { x1, y, z } }, color = col, thickness = 0.03 })
-      z = z + g.size
+    for j, z in ipairs(zs) do
+      local pts = {}
+      for i, x in ipairs(xs) do table.insert(pts, { x, y(i, j), z }) end
+      table.insert(lines, { points = pts, color = col, thickness = thick })
     end
   end
   if S.showingArea then
-    local y = mapTopY() + 0.05
+    local yy = mapTopY() + 0.05
+    local x0, x1 = a.x - a.w / 2, a.x + a.w / 2
+    local z0, z1 = a.z - a.d / 2, a.z + a.d / 2
     table.insert(lines, {
-      points = { { x0, y, z0 }, { x1, y, z0 }, { x1, y, z1 }, { x0, y, z1 }, { x0, y, z0 } },
+      points = { { x0, yy, z0 }, { x1, yy, z0 }, { x1, yy, z1 }, { x0, yy, z1 }, { x0, yy, z0 } },
       color = { 1, 0.45, 0.1 }, thickness = 0.12,
     })
   end
   Global.setVectorLines(lines)
 end
 
-function showArea()
-  S.showingArea = true
+--------------------------------------------------------------------------
+-- Resetar tudo: a mesa volta ao padrão; os mapas continuam guardados no Atlas
+--------------------------------------------------------------------------
+function resetAll()
+  removeTile()
+  cleanupLegacy()
+  pcall(function() setTableImage(D.origURL or "") end)
+  for _, m in ipairs(D.maps) do
+    m.fit, m.zoom, m.ox, m.oz, m.rot = "mesa", 1, 0, 0, 0
+    m.grid = nil
+  end
+  D.current = nil
+  S.sel, S.pending, S.calib, S.heights = nil, nil, nil, nil
+  Grid.snapping = 1
+  Grid.show_lines = false
+  autoArea()
   drawLines()
-  Wait.time(function() S.showingArea = false; drawLines() end, 6)
+  build()
 end
-
---------------------------------------------------------------------------
--- Névoa: Fog of War nativo do TTS — uma zona cobrindo a área do mapa.
--- Reveladores abrem círculos lisos (o motor do TTS cuida disso, sem travar);
--- o mestre sentado no Black enxerga tudo; props bloqueiam a linha de visão.
--- Ajustes da zona (ReHide Objects, Fog Height, Reset) ficam no clique esquerdo na névoa;
--- os de cada revelador (alcance, cor) no clique direito > Reveal Fog of War.
---------------------------------------------------------------------------
-local TAG_ZONE, TAG_REVEAL = "AtlasNevoa", "AtlasRevelador"
-local FOG_ZONE_HEIGHT = 20   -- igual ao spawner do OneWorld
-local DEFAULT_VISION = { range = 5, angle = 360, rot = 0, height = 2 }
-
-function fogOf(m)
-  m = m or current()
-  if not m then return nil end
-  m.fog = m.fog or { on = false }
-  return m.fog
-end
-
-function fogZone() return getObjectsWithTag(TAG_ZONE)[1] end
-
-function clearFog()
-  for _, o in ipairs(getObjectsWithTag(TAG_ZONE)) do o.destruct() end
-  -- zonas da versão antiga (Hidden Zones em células)
-  for _, o in ipairs(getObjectsWithTag("Fog")) do o.destruct() end
-end
-
--- Guarda no mapa o que já foi revelado na zona atual (RevealedLocations), para voltar igual depois.
-function captureFog(m)
-  local z = fogZone()
-  if not (z and m and m.fog) then return end
-  local ok, data = pcall(z.getData)
-  if ok and data and data.FogOfWar then
-    m.fog.revealed = data.FogOfWar.RevealedLocations or {}
-  end
-end
-
--- Garante a zona de névoa do mapa ativo.
---   mode = nil       mantém a zona que já existe (ex.: ao carregar a mesa)
---   mode = "rebuild" recria com o que o mapa já tinha revelado (troca de mapa, área, modo sobrevivência)
---   mode = "reset"   recria cobrindo tudo de novo
--- Criada com spawnObjectData, como o OneWorld, para já nascer com as opções da zona definidas.
-function buildFog(mode)
-  local f = current() and current().fog
-  if not (f and f.on) then return clearFog() end
-  if fogZone() and not mode then return end
-  if mode == "reset" then f.revealed = {} end
-  clearFog()
-  local a = D.area
-  -- A base da zona fica logo ACIMA do pano: o plano preto (Height = 0) é desenhado na base;
-  -- abaixo da superfície ele some embaixo da mesa.
-  local py = a.y + 0.03 + FOG_ZONE_HEIGHT / 2   -- posição final: base logo acima do pano
-  -- Posição e tamanho vão no próprio Transform (é com ele que a zona nasce);
-  -- os demais campos seguem o spawner de névoa do OneWorld.
-  local zone = spawnObjectData({
-    data = {
-      Name = "FogOfWar",
-      Transform = {
-        posX = 0, posY = 0, posZ = 0,
-        rotX = 0, rotY = 0, rotZ = 0,
-        scaleX = 1, scaleY = 1, scaleZ = 1,
-      },
-      Nickname = tr("Névoa"),
-      Description = "",
-      GMNotes = "",
-      ColorDiffuse = { r = 0.25, g = 0.25, b = 0.25, a = 0.1025644 },
-      LayoutGroupSortIndex = 0,
-      Value = 0,
-      Locked = true,
-      Grid = true,
-      Snap = true,
-      IgnoreFoW = false,
-      MeasureMovement = false,
-      DragSelectable = true,
-      Autoraise = true,
-      Sticky = true,
-      Tooltip = true,
-      GridProjection = false,
-      HideWhenFaceDown = false,
-      Hands = false,
-      FogOfWar = {
-        HideGmPointer = false,
-        HideObjects = true,
-        ReHideObjects = f.survival == true,
-        Height = 0,
-        RevealedLocations = f.revealed or {},
-      },
-      LuaScript = "",
-      LuaScriptState = "",
-      XmlUI = "",
-    },
-    position = { x = a.x, y = 100, z = a.z },
-    rotation = { x = 0, y = 0, z = 0 },
-    scale = { x = a.w, y = FOG_ZONE_HEIGHT, z = a.d },
-    sound = false,
-    callback_function = function(o)
-      o.addTag(TAG_ZONE)
-      o.setPositionSmooth({ a.x, py, a.z })
-      local b = o.getBounds().size
-      say(nil, string.format(tr("Névoa criada: %.1f x %.1f"), b.x, b.z))
-    end,
-  })
-  if not zone then say(nil, tr("O TTS não criou a zona de névoa.")) end
-end
-
--- Configuração do revelador guardada no próprio objeto (memo), para mostrar no painel.
-function visionOf(o)
-  local ok, v = pcall(JSON.decode, o.memo or "")
-  v = (ok and type(v) == "table") and v or {}
-  for k, d in pairs(DEFAULT_VISION) do if v[k] == nil then v[k] = d end end
-  return v
-end
-
--- Liga a revelação nativa. fov/fov_offset fazem o cone de visão nas versões do TTS que os aceitam;
--- nas outras são ignorados e o revelador abre um círculo.
-function applyReveal(o, v)
-  o.memo = JSON.encode(v)
-  o.addTag(TAG_REVEAL)
-  -- 1º só os campos documentados (liga o círculo); 2º o cone, à parte, para não derrubar o círculo
-  -- se esta versão do TTS não aceitar fov/fov_offset.
-  o.setFogOfWarReveal({ reveal = true, color = "All", range = v.range })
-  pcall(function() o.setFogOfWarReveal({ height = v.height }) end)
-  if v.angle < 360 or (v.rot or 0) ~= 0 then
-    pcall(function() o.setFogOfWarReveal({ fov = v.angle, fov_offset = v.rot }) end)
-  end
-end
-
--- Mostra no chat o que o TTS registrou para o revelador (ajuda a diagnosticar).
-function reportReveal(c, o)
-  local ok, r = pcall(o.getFogOfWarReveal)
-  if ok and type(r) == "table" then
-    say(c, string.format(tr("Revelador: %s, alcance %s, cor %s"),
-      tostring(r.reveal), tostring(r.range), tostring(r.color)) .. "  h=" .. tostring(r.height))
-  else
-    say(c, tr("O TTS não informou a revelação deste objeto."))
-  end
-end
-
-function removeReveal(o)
-  o.removeTag(TAG_REVEAL)
-  o.setFogOfWarReveal({ reveal = false })
-end
-
--- Aplica uma mudança em todos os objetos selecionados (exceto o próprio Atlas).
-function eachSelected(c, fn)
-  local sel = Player[c].getSelectedObjects()
-  local n = 0
-  for _, o in ipairs(sel) do
-    if o ~= self and not o.hasTag("Fog") and not o.hasTag("AtlasNevoa") and not o.hasTag("MapaTile") then
-      fn(o)
-      n = n + 1
-    end
-  end
-  if n == 0 then say(c, tr("Selecione um token ou prop primeiro (clique nele, ou arraste uma caixa).")) end
-  return n
-end
-
-
-
 
 --------------------------------------------------------------------------
 -- Ações dos botões — cada botão chama uma função com nome fixo: (obj, cor, clique_direito)
@@ -699,25 +580,14 @@ function setTab(t) S.tab = t; S.pending = nil; build() end
 function t_mapas() setTab("mapas") end
 function t_imagem() setTab("imagem") end
 function t_grade() setTab("grade") end
-function t_nevoa() setTab("nevoa") end
 function t_area() setTab("area") end
 
--- Campos de texto: (obj, cor, valor, editando)
-function in_name(_, _, value) S.newName = value end
-function in_url(_, _, value) S.newUrl = value end
-
--- Mapas
-function a_addLink(_, c)
-  if not isGM(c) then return end
-  local url = trim(S.newUrl)
-  if url == "" then return say(c, tr("Cole o link da imagem (.jpg ou .png).")) end
-  addMap(S.newName, url)
-end
-
--- Arquivo do PC: o mestre escolhe a imagem no menu Custom do TTS (que sobe para a Cloud).
+-- Adicionar mapa por arquivo do PC (principal): o mestre escolhe a imagem no menu Custom do TTS,
+-- que sobe para a Steam Cloud; depois dá um nome ao mapa.
 function a_addFile(_, c)
-  if not isGM(c) then return end
-  local name, a = S.newName, D.area
+  local p = gm(c)
+  if not p then return end
+  local a = D.area
   local tile = spawnObject({ type = "Custom_Tile", position = { a.x, a.y + 3, a.z }, scale = { 3, 1, 3 } })
   tile.setName(tr("Novo mapa: clique direito > Custom"))
   local guid = tile.getGUID()
@@ -726,8 +596,10 @@ function a_addFile(_, c)
     local t = getObjectFromGUID(guid)
     local url = t.getCustomObject().image
     t.destruct()
-    addMap(name, url)
-    say(c, tr("Mapa adicionado!"))
+    p.showInputDialog(tr("Nome do mapa"), tr("Mapa ") .. (#D.maps + 1), function(text)
+      addMap(text, url)
+      say(c, tr("Mapa adicionado!"))
+    end)
   end, function()
     local t = getObjectFromGUID(guid)
     if not t or t.spawning then return false end
@@ -736,42 +608,126 @@ function a_addFile(_, c)
   end, 600, function() say(c, tr("Tempo esgotado esperando a imagem. Tente de novo.")) end)
 end
 
+-- Adicionar por link (secundário)
+function a_addLink(_, c)
+  local p = gm(c)
+  if not p then return end
+  p.showInputDialog(tr("Cole o link da imagem (.jpg ou .png)"), "", function(url)
+    url = trim(url)
+    if url == "" then return end
+    Wait.frames(function()
+      p.showInputDialog(tr("Nome do mapa"), tr("Mapa ") .. (#D.maps + 1), function(text) addMap(text, url) end)
+    end, 2)
+  end)
+end
+
+-- Pastas
+function a_pickFolder(_, c)
+  local p = gm(c)
+  if not p then return end
+  p.showOptionsDialog(tr("Escolher pasta para ver"), folderOptions(true), function(text)
+    local f, all = folderFromOption(text)
+    S.folder = (not all) and f or nil
+    S.page, S.sel = 1, nil
+    build()
+  end)
+end
+
 function a_newFolder(_, c)
-  if not isGM(c) then return end
-  local name = trim(S.newName)
-  if name == "" then return say(c, tr("Digite o nome da pasta no campo Nome.")) end
-  for _, f in ipairs(D.folders) do
-    if f == name then return say(c, tr("Já existe uma pasta com esse nome.")) end
-  end
-  table.insert(D.folders, name)
-  S.newName = ""
-  build()
+  local p = gm(c)
+  if not p then return end
+  p.showInputDialog(tr("Nome da nova pasta"), "", function(text)
+    local name = trim(text)
+    if name == "" then return end
+    for _, f in ipairs(D.folders) do
+      if f == name then return say(c, tr("Já existe uma pasta com esse nome.")) end
+    end
+    table.insert(D.folders, name)
+    S.folder, S.page, S.sel = name, 1, nil
+    build()
+  end)
 end
 
-function a_moveHere(_, c)
-  if not isGM(c) then return end
-  local m = current()
-  if not m then return say(c, tr("Nenhum mapa ativo.")) end
-  m.folder = D.openFolder
-  build()
-end
-
-function a_prev() if S.page > 1 then S.page = S.page - 1; build() end end
+-- Páginas
+function a_prev() if S.page > 1 then S.page = S.page - 1; S.sel = nil; build() end end
 function a_next()
-  if S.page < math.ceil(#getEntries() / ROWS) then S.page = S.page + 1; build() end
+  local pages = math.ceil(#visibleMaps() / (THUMB_COLS * THUMB_ROWS))
+  if S.page < pages then S.page = S.page + 1; S.sel = nil; build() end
 end
 
+-- Miniaturas: clicar seleciona; clicar de novo no selecionado aplica na mesa
+function thumb(n, c)
+  if not gm(c) then return end
+  local i = visibleMaps()[(S.page - 1) * THUMB_COLS * THUMB_ROWS + n]
+  if not i then return end
+  if S.sel == i then return switchTo(i) end
+  S.sel = i
+  build()
+end
+function m1(_, c) thumb(1, c) end
+function m2(_, c) thumb(2, c) end
+function m3(_, c) thumb(3, c) end
+function m4(_, c) thumb(4, c) end
+function m5(_, c) thumb(5, c) end
+function m6(_, c) thumb(6, c) end
+
+-- Mapa selecionado
+function a_apply(_, c)
+  if gm(c) and S.sel and D.maps[S.sel] then switchTo(S.sel) end
+end
+
+function a_rename(_, c)
+  local p = gm(c)
+  local m = S.sel and D.maps[S.sel]
+  if not (p and m) then return end
+  p.showInputDialog(tr("Novo nome do mapa"), m.name, function(text)
+    text = trim(text)
+    if text ~= "" then m.name = text; build() end
+  end)
+end
+
+function a_move(_, c)
+  local p = gm(c)
+  local m = S.sel and D.maps[S.sel]
+  if not (p and m) then return end
+  p.showOptionsDialog(tr("Mover para qual pasta?"), folderOptions(false), function(text)
+    m.folder = folderFromOption(text)
+    build()
+  end)
+end
+
+function a_delete(_, c)
+  local p = gm(c)
+  local i = S.sel
+  local m = i and D.maps[i]
+  if not (p and m) then return end
+  p.showConfirmDialog(tr("Apagar o mapa \"") .. m.name .. tr("\"? (a imagem continua na sua Cloud)"), function()
+    if i == D.current then
+      storeObjects()
+      removeTile()
+      D.current = nil
+      applyGrid()
+    elseif D.current and i < D.current then
+      D.current = D.current - 1
+    end
+    table.remove(D.maps, i)
+    S.sel = nil
+    build()
+  end)
+end
+
+-- Estado (props e tokens)
 function a_save(_, c)
-  if not isGM(c) then return end
+  if not gm(c) then return end
   local m = current()
   if not m then return say(c, tr("Nenhum mapa ativo.")) end
   m.saved = storeObjects(true)
-  say(c, tr("Estado de \"") .. m.name .. tr("\" salvo (") .. #m.saved .. tr(" objetos)."))
+  say(c, tr("Estado salvo: ") .. #m.saved .. tr(" objetos."))
   build()
 end
 
 function a_restore(_, c)
-  if not isGM(c) then return end
+  if not gm(c) then return end
   local m = current()
   if not (m and m.saved) then return say(c, tr("Este mapa ainda não tem estado salvo.")) end
   if S.pending ~= "restore" then
@@ -784,54 +740,9 @@ function a_restore(_, c)
   build()
 end
 
--- Linhas da lista: r = abrir/carregar, x = apagar (dois cliques)
-function row(n, c, del)
-  if not isGM(c) then return end
-  local e = getEntries()[(S.page - 1) * ROWS + n]
-  if not e then return end
-  if e.kind == "back" then
-    D.openFolder, S.page = nil, 1
-  elseif e.kind == "folder" and not del then
-    D.openFolder, S.page = e.name, 1
-  elseif e.kind == "map" and not del then
-    if e.i ~= D.current then return switchTo(e.i) end
-  else
-    local key = e.kind .. ":" .. (e.i or e.fi)
-    if S.pending ~= key then
-      S.pending = key
-      return build()
-    end
-    S.pending = nil
-    if e.kind == "folder" then
-      for _, m in ipairs(D.maps) do if m.folder == e.name then m.folder = nil end end
-      table.remove(D.folders, e.fi)
-    else
-      if e.i == D.current then
-        storeObjects()
-        removeTile()
-        clearFog()
-        D.current = nil
-        applyGrid()
-      elseif D.current and e.i < D.current then
-        D.current = D.current - 1
-      end
-      table.remove(D.maps, e.i)
-    end
-  end
-  build()
-end
-function r1(_, c) row(1, c) end function x1(_, c) row(1, c, true) end
-function r2(_, c) row(2, c) end function x2(_, c) row(2, c, true) end
-function r3(_, c) row(3, c) end function x3(_, c) row(3, c, true) end
-function r4(_, c) row(4, c) end function x4(_, c) row(4, c, true) end
-function r5(_, c) row(5, c) end function x5(_, c) row(5, c, true) end
-function r6(_, c) row(6, c) end function x6(_, c) row(6, c, true) end
-function r7(_, c) row(7, c) end function x7(_, c) row(7, c, true) end
-function r8(_, c) row(8, c) end function x8(_, c) row(8, c, true) end
-
 -- Imagem
 function setFit(c, fit)
-  if not isGM(c) then return end
+  if not gm(c) then return end
   local m = current()
   if not m then return end
   m.fit = fit
@@ -843,10 +754,12 @@ function f_caber(_, c) setFit(c, "caber") end
 function f_preencher(_, c) setFit(c, "preencher") end
 
 function adjust(c, k)
-  if not isGM(c) then return end
+  if not gm(c) then return end
   local m = current()
   if not m then return end
-  if m.fit == "mesa" then return say(c, tr("Ajustes funcionam nos modos Caber e Preencher.")) end
+  if m.fit ~= "caber" and m.fit ~= "preencher" then
+    return say(c, tr("Ajustes funcionam nos modos Caber e Preencher."))
+  end
   if k == "zin" then m.zoom = (m.zoom or 1) * ZOOM_STEP
   elseif k == "zout" then m.zoom = (m.zoom or 1) / ZOOM_STEP
   elseif k == "rot" then m.rot = ((m.rot or 0) + 90) % 360
@@ -870,22 +783,29 @@ function j_right(_, c) adjust(c, "right") end
 
 -- Grade
 function grid(c, k)
-  if not isGM(c) then return end
+  if not gm(c) then return end
   local m = current()
   if not m then return say(c, tr("Nenhum mapa ativo.")) end
-  m.grid = m.grid or { on = false, size = 1, snap = true, ox = 0, oz = 0, alpha = 0.6 }
-  local g = m.grid
+  local g = gridOf(m)
   if k == "on" then g.on = not g.on
-  elseif k == "snap" then g.snap = not (g.snap ~= false)
+  elseif k == "snap" then g.snap = not g.snap
   elseif k == "less" then g.size = math.max(GRID_STEP, g.size - GRID_STEP)
   elseif k == "more" then g.size = g.size + GRID_STEP
-  elseif k == "light" then g.alpha = math.max(0.15, (g.alpha or 0.6) - 0.15)
-  elseif k == "dark" then g.alpha = math.min(1, (g.alpha or 0.6) + 0.15)
+  elseif k == "light" then g.alpha = math.max(0.15, g.alpha - 0.15)
+  elseif k == "dark" then g.alpha = math.min(1, g.alpha + 0.15)
+  elseif k == "color" then g.color = g.color % #GRID_COLORS + 1
+  elseif k == "thin" then g.stroke = math.max(1, g.stroke - 1)
+  elseif k == "thick" then g.stroke = math.min(#GRID_STROKES, g.stroke + 1)
+  elseif k == "relief" then g.relief = not g.relief
   else
     local dx = (k == "left" and -1) or (k == "right" and 1) or 0
     local dz = (k == "up" and 1) or (k == "down" and -1) or 0
-    g.ox = ((g.ox or 0) + dx * g.size / 4) % g.size
-    g.oz = ((g.oz or 0) + dz * g.size / 4) % g.size
+    g.ox = (g.ox + dx * g.size / 4) % g.size
+    g.oz = (g.oz + dz * g.size / 4) % g.size
+  end
+  -- mudou a geometria da grade: o relevo precisa ser recalculado
+  if k ~= "snap" and k ~= "light" and k ~= "dark" and k ~= "color" and k ~= "thin" and k ~= "thick" then
+    S.heights = nil
   end
   applyGrid()
   build()
@@ -896,102 +816,28 @@ function g_less(_, c) grid(c, "less") end
 function g_more(_, c) grid(c, "more") end
 function g_light(_, c) grid(c, "light") end
 function g_dark(_, c) grid(c, "dark") end
+function g_color(_, c) grid(c, "color") end
+function g_thin(_, c) grid(c, "thin") end
+function g_thick(_, c) grid(c, "thick") end
+function g_relief(_, c) grid(c, "relief") end
 function g_left(_, c) grid(c, "left") end
 function g_up(_, c) grid(c, "up") end
 function g_down(_, c) grid(c, "down") end
 function g_right(_, c) grid(c, "right") end
 
--- Névoa
-function fog(c, k)
-  if not isGM(c) then return end
-  local f = fogOf()
-  if not f then return say(c, tr("Nenhum mapa ativo.")) end
-  captureFog(current())
-  if k == "on" then
-    f.on = not f.on
-    buildFog("rebuild")
-  elseif k == "survival" then
-    f.survival = not f.survival
-    buildFog("rebuild")
-  else
-    buildFog("reset")
-  end
-  build()
-end
-function n_on(_, c) fog(c, "on") end
-function n_reset(_, c) fog(c, "reset") end
-function n_surv(_, c) fog(c, "survival") end
-
--- Reveladores
-function v_spawn(_, c)
-  if not isGM(c) then return end
-  local a = D.area
-  spawnObject({
-    type = "Chip_10",
-    position = { a.x, a.y + 2, a.z },
-    callback_function = function(o)
-      o.setName(tr("Revelador"))
-      o.setColorTint({ 0.85, 0.65, 0.2 })
-      -- espera a peça assentar antes de ligar a revelação
-      Wait.frames(function()
-        applyReveal(o, visionOf(o))
-        reportReveal(c, o)
-        build()
-      end, 10)
-    end,
-  })
-  say(c, tr("Revelador criado no centro do mapa. Arraste para onde quiser."))
-end
-
-function v_reveal(_, c)
-  if not isGM(c) then return end
-  eachSelected(c, function(o)
-    applyReveal(o, visionOf(o))
-    reportReveal(c, o)
-  end)
-  build()
-end
-
-function v_clear(_, c)
-  if not isGM(c) then return end
-  eachSelected(c, removeReveal)
-  build()
-end
-
--- Ajustes valem para os objetos selecionados que já são reveladores.
-function tune(c, fn)
-  if not isGM(c) then return end
-  eachSelected(c, function(o)
-    if o.hasTag(TAG_REVEAL) then
-      local v = visionOf(o)
-      fn(v)
-      applyReveal(o, v)
-      S.lastVision = v
-    end
-  end)
-  build()
-end
-function v_rless(_, c) tune(c, function(v) v.range = math.max(1, v.range - 1) end) end
-function v_rmore(_, c) tune(c, function(v) v.range = v.range + 1 end) end
-function v_aless(_, c) tune(c, function(v) v.angle = math.max(30, v.angle - 30) end) end
-function v_amore(_, c) tune(c, function(v) v.angle = math.min(360, v.angle + 30) end) end
-function v_rot(_, c) tune(c, function(v) v.rot = ((v.rot or 0) + 90) % 360 end) end
-
 -- Área
 function z_auto(_, c)
-  if not isGM(c) then return end
+  if not gm(c) then return end
   autoArea()
+  S.heights = nil
   afterAreaChange()
   build()
 end
 function z_show() showArea() end
-
--- Idioma (os atalhos de teclado mudam de nome no próximo carregamento)
-function l_pt(_, c) if isGM(c) then D.lang = "pt"; build() end end
-function l_en(_, c) if isGM(c) then D.lang = "en"; build() end end
 function z_fix(_, c)
-  if not isGM(c) then return end
-  local sel = Player[c].getSelectedObjects()
+  local p = gm(c)
+  if not p then return end
+  local sel = p.getSelectedObjects()
   if #sel == 0 then return say(c, tr("Selecione objetos primeiro (arraste uma caixa ou Ctrl+clique).")) end
   for _, o in ipairs(sel) do
     if o ~= self then
@@ -1001,45 +847,57 @@ function z_fix(_, c)
   end
 end
 function z_calib(_, c)
-  if not isGM(c) then return end
+  local p = gm(c)
+  if not p then return end
   local step = S.calib and 2 or 1
   say(c, tr("Mire o mouse no canto ") .. step .. tr(" da área... (3s)"))
   Wait.time(function()
-    local p = Player[c].getPointerPosition()
+    local pt = p.getPointerPosition()
     if step == 1 then
-      S.calib = p
+      S.calib = pt
     else
       local c1 = S.calib
       D.area = {
-        x = (c1.x + p.x) / 2, z = (c1.z + p.z) / 2,
-        w = math.abs(p.x - c1.x), d = math.abs(p.z - c1.z), manual = true,
+        x = (c1.x + pt.x) / 2, z = (c1.z + pt.z) / 2,
+        w = math.abs(pt.x - c1.x), d = math.abs(pt.z - c1.z), manual = true,
       }
       D.area.y = surfaceY(D.area.x, D.area.z)
-      S.calib = nil
+      S.calib, S.heights = nil, nil
       afterAreaChange()
     end
     build()
   end, 3)
 end
 
+function z_reset(_, c)
+  local p = gm(c)
+  if not p then return end
+  p.showConfirmDialog(tr("Resetar tudo? A imagem da mesa volta ao padrão e as configurações de imagem, grade e área são apagadas. Os mapas continuam no Atlas."),
+    function()
+      resetAll()
+      say(c, tr("Tudo resetado. Os mapas continuam no Atlas."))
+    end)
+end
+
+function l_pt(_, c) if gm(c) then D.lang = "pt"; self.setName(tr("Atlas do Mestre")); build() end end
+function l_en(_, c) if gm(c) then D.lang = "en"; self.setName(tr("Atlas do Mestre")); build() end end
+
 --------------------------------------------------------------------------
--- Desenho dos botões sobre o tampo de pergaminho
+-- Desenho do painel sobre o tampo de couro
 --------------------------------------------------------------------------
--- Paleta (pergaminho, couro, vinho, musgo, latão) — cores chapadas, sem brilho
-local INK = { 0.23, 0.15, 0.08 }
-local MUTED = { 0.45, 0.34, 0.21 }
-local WINE_TXT = { 0.48, 0.17, 0.14 }
-local PARCH_TXT = { 0.97, 0.92, 0.79 }
-local LEATHER = { 0.36, 0.22, 0.12 }
-local LEATHER_SOFT = { 0.55, 0.40, 0.22 }
-local WINE = { 0.48, 0.18, 0.15 }
-local MOSS = { 0.31, 0.36, 0.18 }
-local BRICK = { 0.55, 0.24, 0.14 }
+local CREAM = { 0.93, 0.89, 0.80 }
+local MUTED = { 0.64, 0.60, 0.53 }
+local GOLD = { 0.86, 0.68, 0.32 }
+local DARK_TXT = { 0.12, 0.08, 0.04 }
+local WALNUT = { 0.33, 0.21, 0.12 }
+local SLATE = { 0.24, 0.25, 0.29 }
+local BRASS = { 0.76, 0.56, 0.22 }
+local TEAL = { 0.18, 0.40, 0.36 }
+local BRICK = { 0.55, 0.22, 0.14 }
 local CLEAR = { 0, 0, 0, 0 }
 
 -- Coordenadas em unidades do mundo a partir do centro do tampo; z positivo = topo do painel.
--- No TTS o "para cima" do texto dos botões aponta para o -z local, então o z é invertido aqui
--- (e o mapa enrolado do modelo fica no -z).
+-- No TTS o "para cima" do texto dos botões aponta para o -z local, então o z é invertido aqui.
 function place(x, z)
   local s = self.getScale()
   local top = isModel() and (MODEL_TOP + 0.02) / s.y or (0.5 + 0.02 / s.y)
@@ -1052,8 +910,8 @@ function B(label, fn, x, z, w, h, color, textColor, tip)
     label = label, click_function = fn, function_owner = self,
     position = pos, scale = sc,
     width = w * U, height = h * U, font_size = math.floor(h * U * 0.42),
-    color = color or LEATHER, font_color = textColor or PARCH_TXT,
-    hover_color = { 0.62, 0.44, 0.22 }, press_color = { 0.74, 0.56, 0.28 },
+    color = color or WALNUT, font_color = textColor or CREAM,
+    hover_color = { 0.52, 0.38, 0.18 }, press_color = { 0.70, 0.52, 0.22 },
     tooltip = tip or "",
   })
 end
@@ -1063,25 +921,38 @@ function T(label, x, z, h, color)
   self.createButton({
     label = label, click_function = "noop", function_owner = self,
     position = pos, scale = sc, width = 0, height = math.floor(h * U),
-    font_size = math.floor(h * U * 0.62), font_color = color or INK, color = CLEAR,
+    font_size = math.floor(h * U * 0.62), font_color = color or CREAM, color = CLEAR,
   })
 end
 
-function I(fn, placeholder, value, x, z, w, h)
+-- Botão invisível por cima de uma miniatura (para clicar nela)
+function HOT(fn, x, z, w, h, tip)
   local pos, sc = place(x, z)
-  self.createInput({
-    input_function = fn, function_owner = self, label = placeholder, value = value,
-    position = pos, scale = sc, alignment = 2,
-    width = w * U, height = h * U, font_size = math.floor(h * U * 0.40),
-    color = { 0.98, 0.95, 0.86 }, font_color = INK,
+  self.createButton({
+    label = "", click_function = fn, function_owner = self,
+    position = pos, scale = sc, width = w * U, height = h * U,
+    color = CLEAR, hover_color = { 1, 1, 1, 0.08 }, press_color = { 1, 1, 1, 0.15 },
+    tooltip = tip or "",
   })
+end
+
+-- Miniatura do mapa desenhada no tampo (decal)
+function decal(name, url, x, z, w, h)
+  local s = self.getScale()
+  local top = isModel() and (MODEL_TOP + 0.012) / s.y or (0.5 + 0.012 / s.y)
+  return {
+    name = name, url = url,
+    position = { x / s.x, top, -z / s.z },
+    rotation = DECAL_ROT,
+    scale = { w / s.x, h / s.z, 1 },
+  }
 end
 
 function build()
   self.clearButtons()
-  self.clearInputs()
+  local decals = {}
   local m = current()
-  local W = INNER.w - 0.7
+  local W = INNER.w - 0.8
   local half = W / 2 - 0.06
   local third = W / 3 - 0.08
   local quarter = W / 4 - 0.08
@@ -1089,15 +960,16 @@ function build()
   local x3 = { -W / 3, 0, W / 3 }
   local x4 = { -W * 3 / 8, -W / 8, W / 8, W * 3 / 8 }
 
-  local z = INNER.d / 2 - 0.3
+  local z = INNER.d / 2 - 0.35
   local function line(h)
     local c = z - h / 2
     z = z - h - 0.12
     return c
   end
   local function gap(h) z = z - h end
-  local function heading(text) T(text, -W / 2 + 0.05 + #text * 0.066, line(0.36), 0.36, WINE_TXT) end
-  local function on(flag) return flag and WINE or LEATHER end
+  local function heading(text) T(text, -W / 2 + 0.05 + #text * 0.066, line(0.36), 0.36, GOLD) end
+  local function on(flag) return flag and BRASS or WALNUT end
+  local function onTxt(flag) return flag and DARK_TXT or CREAM end
   local function needMap()
     if m then return true end
     T(tr("Carregue um mapa na aba Mapas."), 0, line(0.4), 0.32, MUTED)
@@ -1105,171 +977,158 @@ function build()
   end
 
   -- Cabeçalho
-  T(tr("Atlas do Mestre"), 0, line(0.6), 0.6, WINE_TXT)
-  T(m and (tr("Mapa ativo: ") .. m.name) or tr("Nenhum mapa ativo"), 0, line(0.36), 0.36, MUTED)
+  T(tr("Atlas do Mestre"), 0, line(0.6), 0.6, GOLD)
+  T(m and (tr("Mapa ativo: ") .. m.name) or tr("Nenhum mapa ativo"), 0, line(0.34), 0.34, MUTED)
   gap(0.05)
-
-  -- Abas
   local c = line(0.55)
-  local tabs = { { "mapas", tr("Mapas") }, { "imagem", tr("Imagem") }, { "grade", tr("Grade") }, { "nevoa", tr("Névoa") }, { "area", tr("Área") } }
+  local tabs = { { "mapas", "Mapas" }, { "imagem", "Imagem" }, { "grade", "Grade" }, { "area", "Área" } }
   local tw = W / #tabs
   for k, t in ipairs(tabs) do
     local sel = S.tab == t[1]
-    B(t[2], "t_" .. t[1], -W / 2 + tw * (k - 0.5), c, tw - 0.08, 0.55, sel and WINE or LEATHER_SOFT, PARCH_TXT)
+    B(tr(t[2]), "t_" .. t[1], -W / 2 + tw * (k - 0.5), c, tw - 0.1, 0.55, sel and BRASS or SLATE, onTxt(sel))
   end
   gap(0.2)
 
   if S.tab == "mapas" then
-    I("in_name", tr("Nome do mapa ou da pasta"), S.newName, 0, line(0.5), W, 0.5)
-    I("in_url", tr("Link da imagem (.jpg / .png)"), S.newUrl, 0, line(0.5), W, 0.5)
+    c = line(0.6)
+    B(tr("+ Arquivo do PC"), "a_addFile", -W / 2 + W * 0.36, c, W * 0.72 - 0.06, 0.6, BRASS, DARK_TXT,
+      tr("Escolher uma imagem do computador (sobe para a sua Steam Cloud)"))
+    B(tr("Link"), "a_addLink", W / 2 - W * 0.14, c, W * 0.28 - 0.06, 0.6, SLATE, MUTED,
+      tr("Adicionar por link da web (.jpg / .png)"))
     c = line(0.5)
-    B(tr("+ Link"), "a_addLink", x2[1], c, half, 0.5, MOSS, PARCH_TXT, tr("Adiciona o mapa do link"))
-    B(tr("+ Arquivo do PC"), "a_addFile", x2[2], c, half, 0.5, MOSS, PARCH_TXT, tr("Escolher uma imagem do computador"))
-    c = line(0.5)
-    B(tr("+ Pasta"), "a_newFolder", x2[1], c, half, 0.5, LEATHER, PARCH_TXT, tr("Cria uma pasta com o nome digitado"))
-    B(tr("Mover mapa p/ cá"), "a_moveHere", x2[2], c, half, 0.5, LEATHER, PARCH_TXT, tr("Move o mapa ativo para a pasta aberta"))
-    gap(0.05)
-    heading(D.openFolder and (tr("Pasta: ") .. D.openFolder) or tr("Seus mapas"))
+    B(tr("Pasta: ") .. (S.folder or tr("Todos os mapas")), "a_pickFolder", -W / 2 + W * 0.36, c, W * 0.72 - 0.06, 0.5,
+      WALNUT, CREAM, tr("Escolher pasta para ver"))
+    B(tr("+ Pasta"), "a_newFolder", W / 2 - W * 0.14, c, W * 0.28 - 0.06, 0.5, WALNUT)
+    gap(0.08)
 
-    local entries = getEntries()
-    local pages = math.max(1, math.ceil(#entries / ROWS))
+    -- Miniaturas (2 colunas x 3 linhas por página)
+    local list = visibleMaps()
+    local perPage = THUMB_COLS * THUMB_ROWS
+    local pages = math.max(1, math.ceil(#list / perPage))
     if S.page > pages then S.page = pages end
-    local nameW = W - 0.62
-    for n = 1, ROWS do
-      local e = entries[(S.page - 1) * ROWS + n]
-      local rc = line(0.46)
-      if e then
-        local nx = -W / 2 + nameW / 2
-        if e.kind == "back" then
-          B(tr("< Voltar"), "r" .. n, 0, rc, W, 0.46, LEATHER_SOFT)
-        elseif e.kind == "folder" then
-          local confirm = S.pending == ("folder:" .. e.fi)
-          B(tr("Pasta: ") .. e.name .. "   (" .. e.count .. ")", "r" .. n, nx, rc, nameW, 0.46, LEATHER_SOFT, PARCH_TXT,
-            tr("Clique para abrir"))
-          B(confirm and "?" or "x", "x" .. n, W / 2 - 0.27, rc, 0.54, 0.46, BRICK, PARCH_TXT,
-            confirm and tr("Clique de novo para apagar a pasta") or tr("Apagar pasta"))
-        else
-          local mp = D.maps[e.i]
-          local sel = e.i == D.current
-          local confirm = S.pending == ("map:" .. e.i)
-          B(mp.name .. (mp.saved and "  *" or ""), "r" .. n, nx, rc, nameW, 0.46, sel and WINE or LEATHER, PARCH_TXT,
-            tr("Clique para carregar   |   * = tem estado salvo"))
-          B(confirm and "?" or "x", "x" .. n, W / 2 - 0.27, rc, 0.54, 0.46, BRICK, PARCH_TXT,
-            confirm and tr("Clique de novo para apagar") or tr("Apagar mapa"))
-        end
+    local colX = { -W / 4, W / 4 }
+    local cellH = THUMB_H + 0.42 + 0.14
+    local gridTop = z
+    for n = 1, perPage do
+      local i = list[(S.page - 1) * perPage + n]
+      local col = (n - 1) % THUMB_COLS + 1
+      local rowN = math.floor((n - 1) / THUMB_COLS)
+      local cy = gridTop - rowN * cellH - THUMB_H / 2
+      if i then
+        local mp = D.maps[i]
+        local sel, active = S.sel == i, D.current == i
+        table.insert(decals, decal("mapa" .. n, mp.url, colX[col], cy, THUMB_W, THUMB_H))
+        HOT("m" .. n, colX[col], cy, THUMB_W, THUMB_H, mp.name)
+        local label = mp.name .. (active and ("  (" .. tr("na mesa") .. ")") or "") .. (mp.saved and "  *" or "")
+        B(label, "m" .. n, colX[col], cy - THUMB_H / 2 - 0.25, THUMB_W, 0.4,
+          sel and BRASS or (active and TEAL or SLATE), sel and DARK_TXT or CREAM, mp.name)
       elseif n == 1 then
-        T(tr("Nenhum mapa ainda. Adicione um acima."), 0, rc, 0.3, MUTED)
+        T(tr("Nenhum mapa aqui. Use + Arquivo do PC."), 0, cy, 0.32, MUTED)
       end
     end
+    z = gridTop - THUMB_ROWS * cellH - 0.05
     c = line(0.45)
-    B("<", "a_prev", -W / 3, c, 1.0, 0.45)
-    T(S.page .. " / " .. pages, 0, c, 0.3, MUTED)
-    B(">", "a_next", W / 3, c, 1.0, 0.45)
+    B("<", "a_prev", -W / 3, c, 1.0, 0.45, SLATE)
+    T(tr("Página ") .. S.page .. " / " .. pages, 0, c, 0.3, MUTED)
+    B(">", "a_next", W / 3, c, 1.0, 0.45, SLATE)
     gap(0.05)
+
+    c = line(0.55)
+    if S.sel and D.maps[S.sel] then
+      B(tr("Aplicar na mesa"), "a_apply", x4[1] + quarter / 2 + 0.04, c, quarter * 2 + 0.08, 0.55, BRASS, DARK_TXT)
+      B(tr("Renomear"), "a_rename", x4[3], c, quarter, 0.55)
+      B(tr("Mover"), "a_move", x4[4] - quarter / 4 - 0.02, c, quarter / 2 - 0.04, 0.55)
+      B(tr("Apagar"), "a_delete", x4[4] + quarter / 4 + 0.02, c, quarter / 2 - 0.04, 0.55, BRICK)
+    else
+      T(tr("Selecione um mapa para aplicar, renomear ou mover."), 0, c, 0.3, MUTED)
+    end
     c = line(0.5)
-    B(tr("Salvar estado"), "a_save", x2[1], c, half, 0.5, MOSS, PARCH_TXT, tr("Guarda a posição dos props e tokens neste mapa"))
-    B(S.pending == "restore" and tr("Confirmar?") or tr("Restaurar"), "a_restore", x2[2], c, half, 0.5, BRICK, PARCH_TXT,
+    B(tr("Salvar estado"), "a_save", x2[1], c, half, 0.5, TEAL, CREAM, tr("Guarda a posição dos props e tokens neste mapa"))
+    B(S.pending == "restore" and tr("Confirmar?") or tr("Restaurar"), "a_restore", x2[2], c, half, 0.5, BRICK, CREAM,
       tr("Volta ao último estado salvo"))
 
   elseif S.tab == "imagem" then
     if needMap() then
-      heading(tr("Como exibir"))
-      c = line(0.55)
-      B(tr("Na mesa"), "f_mesa", x3[1], c, third, 0.55, on(m.fit == "mesa"), PARCH_TXT, tr("Imagem direto na parte customizável da mesa"))
-      B(tr("Caber"), "f_caber", x3[2], c, third, 0.55, on(m.fit == "caber"), PARCH_TXT, tr("Imagem inteira, mantendo a proporção"))
-      B(tr("Preencher"), "f_preencher", x3[3], c, third, 0.55, on(m.fit == "preencher"), PARCH_TXT, tr("Cobre a área toda"))
-      gap(0.15)
-      heading(tr("Ajuste fino (Caber / Preencher)"))
-      c = line(0.55)
-      B(tr("Zoom -"), "j_zout", x3[1], c, third, 0.55)
-      B(tr("Zoom +"), "j_zin", x3[2], c, third, 0.55)
-      B(tr("Girar 90"), "j_rot", x3[3], c, third, 0.55)
-      c = line(0.55)
-      B("<", "j_left", x4[1], c, quarter, 0.55)
-      B("^", "j_up", x4[2], c, quarter, 0.55)
-      B("v", "j_down", x4[3], c, quarter, 0.55)
-      B(">", "j_right", x4[4], c, quarter, 0.55)
+      local main = m.fit ~= "caber" and m.fit ~= "preencher"
+      c = line(0.7)
+      B(tr("Encaixar na mesa"), "f_mesa", 0, c, W, 0.7, on(main), onTxt(main),
+        tr("A imagem vai direto na parte customizável da mesa (recomendado)"))
+      gap(0.3)
+      heading(tr("Avançado: imagem sobre a área"))
       c = line(0.5)
-      B(tr("Resetar ajuste"), "j_reset", 0, c, W, 0.5, LEATHER_SOFT)
+      B(tr("Caber"), "f_caber", x2[1], c, half, 0.5, on(m.fit == "caber"), onTxt(m.fit == "caber"),
+        tr("Imagem inteira, mantendo a proporção"))
+      B(tr("Preencher"), "f_preencher", x2[2], c, half, 0.5, on(m.fit == "preencher"), onTxt(m.fit == "preencher"),
+        tr("Cobre a área toda"))
+      c = line(0.5)
+      B(tr("Zoom -"), "j_zout", x3[1], c, third, 0.5, SLATE)
+      B(tr("Zoom +"), "j_zin", x3[2], c, third, 0.5, SLATE)
+      B(tr("Girar 90"), "j_rot", x3[3], c, third, 0.5, SLATE)
+      c = line(0.5)
+      B("<", "j_left", x4[1], c, quarter, 0.5, SLATE)
+      B("^", "j_up", x4[2], c, quarter, 0.5, SLATE)
+      B("v", "j_down", x4[3], c, quarter, 0.5, SLATE)
+      B(">", "j_right", x4[4], c, quarter, 0.5, SLATE)
+      c = line(0.45)
+      B(tr("Resetar ajuste"), "j_reset", 0, c, W, 0.45, SLATE, MUTED)
     end
 
   elseif S.tab == "grade" then
     if needMap() then
-      local g = m.grid or {}
+      local g = gridOf(m)
       c = line(0.55)
-      B(g.on and tr("Grade: ligada") or tr("Grade: desligada"), "g_on", x2[1], c, half, 0.55, on(g.on))
-      B(g.snap ~= false and tr("Encaixe: ligado") or tr("Encaixe: desligado"), "g_snap", x2[2], c, half, 0.55, on(g.snap ~= false),
-        PARCH_TXT, tr("Peças encaixam no centro dos quadrados"))
-      gap(0.15)
+      B(g.on and tr("Grade: ligada") or tr("Grade: desligada"), "g_on", x2[1], c, half, 0.55, on(g.on), onTxt(g.on))
+      B(g.snap and tr("Encaixe: ligado") or tr("Encaixe: desligado"), "g_snap", x2[2], c, half, 0.55, on(g.snap),
+        onTxt(g.snap), tr("Peças encaixam no centro dos quadrados"))
+      gap(0.1)
       heading(tr("Tamanho do quadrado"))
-      c = line(0.55)
-      B("-", "g_less", x3[1], c, third, 0.55)
-      T(tostring(g.size or 1), x3[2], c, 0.4, INK)
-      B("+", "g_more", x3[3], c, third, 0.55)
-      heading(tr("Intensidade das linhas"))
-      c = line(0.55)
-      B(tr("Mais clara"), "g_light", x2[1], c, half, 0.55)
-      B(tr("Mais escura"), "g_dark", x2[2], c, half, 0.55)
+      c = line(0.5)
+      B("-", "g_less", x3[1], c, third, 0.5)
+      T(tostring(g.size), x3[2], c, 0.4)
+      B("+", "g_more", x3[3], c, third, 0.5)
+      heading(tr("Cor e espessura"))
+      local colorName = D.lang == "en" and GRID_COLORS[g.color][2] or GRID_COLORS[g.color][1]
+      c = line(0.5)
+      B(tr("Cor: ") .. colorName, "g_color", x3[1], c, third, 0.5)
+      B(tr("Linha -"), "g_thin", x3[2], c, third, 0.5)
+      B(tr("Linha +"), "g_thick", x3[3], c, third, 0.5)
+      c = line(0.5)
+      B(tr("Mais clara"), "g_light", x2[1], c, half, 0.5, SLATE)
+      B(tr("Mais escura"), "g_dark", x2[2], c, half, 0.5, SLATE)
       heading(tr("Alinhar com o desenho do mapa"))
-      c = line(0.55)
-      B("<", "g_left", x4[1], c, quarter, 0.55)
-      B("^", "g_up", x4[2], c, quarter, 0.55)
-      B("v", "g_down", x4[3], c, quarter, 0.55)
-      B(">", "g_right", x4[4], c, quarter, 0.55)
-    end
-
-  elseif S.tab == "nevoa" then
-    if needMap() then
-      local f = m.fog or {}
-      c = line(0.55)
-      B(f.on and tr("Névoa: ligada") or tr("Névoa: desligada"), "n_on", x2[1], c, half, 0.55, on(f.on))
-      B(tr("Resetar névoa"), "n_reset", x2[2], c, half, 0.55, LEATHER, PARCH_TXT, tr("Cobre o mapa todo de novo"))
-      T(tr("Sente no Black para ver tudo (mestre)."), 0, line(0.3), 0.26, MUTED)
+      c = line(0.5)
+      B("<", "g_left", x4[1], c, quarter, 0.5, SLATE)
+      B("^", "g_up", x4[2], c, quarter, 0.5, SLATE)
+      B("v", "g_down", x4[3], c, quarter, 0.5, SLATE)
+      B(">", "g_right", x4[4], c, quarter, 0.5, SLATE)
       gap(0.1)
-
-      heading(tr("Reveladores (selecione e clique)"))
       c = line(0.55)
-      B(tr("Criar revelador"), "v_spawn", 0, c, W, 0.55, MOSS, PARCH_TXT, tr("Cria uma peça que revela a névoa em volta dela"))
-      c = line(0.5)
-      B(tr("Marcar revelador"), "v_reveal", x2[1], c, half, 0.5, LEATHER, PARCH_TXT,
-        tr("Os objetos selecionados passam a revelar a névoa"))
-      B(tr("Desmarcar"), "v_clear", x2[2], c, half, 0.5, LEATHER_SOFT, PARCH_TXT, tr("Tira a revelação dos objetos selecionados"))
-      local v = S.lastVision or DEFAULT_VISION
-      c = line(0.5)
-      B(tr("Alcance -"), "v_rless", x3[1], c, third, 0.5)
-      T(tr("Alcance ") .. v.range, x3[2], c, 0.32, INK)
-      B(tr("Alcance +"), "v_rmore", x3[3], c, third, 0.5)
-      c = line(0.5)
-      B(tr("Ângulo -"), "v_aless", x3[1], c, third, 0.5, LEATHER, PARCH_TXT, tr("360° = círculo; menos = cone de visão"))
-      T(tr("Ângulo ") .. v.angle .. "°", x3[2], c, 0.32, INK)
-      B(tr("Ângulo +"), "v_amore", x3[3], c, third, 0.5, LEATHER, PARCH_TXT, tr("360° = círculo; menos = cone de visão"))
-      c = line(0.5)
-      B(tr("Girar visão 90"), "v_rot", 0, c, W, 0.5, LEATHER, PARCH_TXT, tr("Se o cone aponta para o lado errado do token"))
-      T(#getObjectsWithTag(TAG_REVEAL) .. tr(" revelador(es)   "), 0, line(0.3), 0.26, MUTED)
-      gap(0.1)
-
-      heading(tr("Modo sobrevivência"))
-      T(tr("Clique direito no revelador > Reveal Fog of War: alcance e cor."), 0, line(0.28), 0.25, INK)
-      c = line(0.55)
-      B(f.survival and tr("Sobrevivência: ligada") or tr("Sobrevivência: desligada"), "n_surv", 0, c, W, 0.55,
-        on(f.survival), PARCH_TXT, tr("O que sai da visão dos reveladores volta a ficar escondido"))
+      local busy = g.relief and S.reliefBusy
+      B(busy and tr("Calculando relevo...") or (g.relief and tr("Seguir relevo: ligado") or tr("Seguir relevo: desligado")),
+        "g_relief", 0, c, W, 0.55, on(g.relief), onTxt(g.relief), tr("As linhas sobem por cima de props e terrenos 3D"))
     end
 
   elseif S.tab == "area" then
     heading(tr("Área do mapa na mesa"))
     T(string.format("%.1f x %.1f  (%s)", D.area.w, D.area.d, D.area.manual and tr("calibrada") or tr("automática")),
-      0, line(0.35), 0.32, INK)
+      0, line(0.35), 0.32)
     c = line(0.55)
-    B(tr("Detectar"), "z_auto", x2[1], c, half, 0.55, LEATHER, PARCH_TXT, tr("Detecta a área customizável pela própria mesa"))
-    B(S.calib and tr("Canto 2...") or tr("Calibrar"), "z_calib", x2[2], c, half, 0.55, on(S.calib ~= nil), PARCH_TXT,
-      tr("Clique e mire o mouse no canto da área em 3s"))
+    B(tr("Detectar"), "z_auto", x2[1], c, half, 0.55, WALNUT, CREAM, tr("Detecta a área customizável pela própria mesa"))
+    B(S.calib and tr("Canto 2...") or tr("Calibrar"), "z_calib", x2[2], c, half, 0.55, on(S.calib ~= nil),
+      onTxt(S.calib ~= nil), tr("Clique e mire o mouse no canto da área em 3s"))
     c = line(0.55)
     B(tr("Mostrar área"), "z_show", x2[1], c, half, 0.55)
-    B(tr("Fixar selecionados"), "z_fix", x2[2], c, half, 0.55, LEATHER, PARCH_TXT, tr("Objetos fixos não trocam com o mapa"))
-    gap(0.2)
+    B(tr("Fixar selecionados"), "z_fix", x2[2], c, half, 0.55, WALNUT, CREAM, tr("Objetos fixos não trocam com o mapa"))
+    gap(0.25)
     heading(tr("Idioma") .. " / Language")
     c = line(0.55)
-    B("Português", "l_pt", x2[1], c, half, 0.55, on(D.lang ~= "en"))
-    B("English", "l_en", x2[2], c, half, 0.55, on(D.lang == "en"))
+    B("Português", "l_pt", x2[1], c, half, 0.55, on(D.lang ~= "en"), onTxt(D.lang ~= "en"))
+    B("English", "l_en", x2[2], c, half, 0.55, on(D.lang == "en"), onTxt(D.lang == "en"))
+    gap(0.25)
+    heading(tr("Manutenção"))
+    c = line(0.55)
+    B(tr("Resetar tudo"), "z_reset", 0, c, W, 0.55, BRICK, CREAM, tr("Volta a mesa ao padrão; os mapas do Atlas continuam guardados"))
   end
+
+  self.setDecals(decals)
 end
