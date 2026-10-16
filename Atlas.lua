@@ -538,8 +538,8 @@ end
 -- os de cada revelador (alcance, cor) no clique direito > Reveal Fog of War.
 --------------------------------------------------------------------------
 local TAG_ZONE, TAG_REVEAL = "AtlasNevoa", "AtlasRevelador"
-local FOG_ZONE_HEIGHT = 6
-local DEFAULT_VISION = { range = 5, angle = 360, rot = 0 }
+local FOG_ZONE_HEIGHT = 20   -- igual ao spawner do OneWorld
+local DEFAULT_VISION = { range = 5, angle = 360, rot = 0, height = 2 }
 
 function fogOf(m)
   m = m or current()
@@ -580,16 +580,16 @@ function buildFog(mode)
   local a = D.area
   -- A base da zona fica logo ACIMA do pano: o plano preto (Height = 0) é desenhado na base;
   -- abaixo da superfície ele some embaixo da mesa.
-  local py = a.y + 0.03 + FOG_ZONE_HEIGHT / 2
+  local py = a.y + 0.03 + FOG_ZONE_HEIGHT / 2   -- posição final: base logo acima do pano
   -- Posição e tamanho vão no próprio Transform (é com ele que a zona nasce);
   -- os demais campos seguem o spawner de névoa do OneWorld.
   local zone = spawnObjectData({
     data = {
       Name = "FogOfWar",
       Transform = {
-        posX = a.x, posY = py, posZ = a.z,
+        posX = 0, posY = 0, posZ = 0,
         rotX = 0, rotY = 0, rotZ = 0,
-        scaleX = a.w, scaleY = FOG_ZONE_HEIGHT, scaleZ = a.d,
+        scaleX = 1, scaleY = 1, scaleZ = 1,
       },
       Nickname = tr("Névoa"),
       Description = "",
@@ -620,12 +620,13 @@ function buildFog(mode)
       LuaScriptState = "",
       XmlUI = "",
     },
-    position = { x = a.x, y = py, z = a.z },
+    position = { x = a.x, y = 100, z = a.z },
     rotation = { x = 0, y = 0, z = 0 },
     scale = { x = a.w, y = FOG_ZONE_HEIGHT, z = a.d },
     sound = false,
     callback_function = function(o)
       o.addTag(TAG_ZONE)
+      o.setPositionSmooth({ a.x, py, a.z })
       local b = o.getBounds().size
       say(nil, string.format(tr("Névoa criada: %.1f x %.1f"), b.x, b.z))
     end,
@@ -649,6 +650,7 @@ function applyReveal(o, v)
   -- 1º só os campos documentados (liga o círculo); 2º o cone, à parte, para não derrubar o círculo
   -- se esta versão do TTS não aceitar fov/fov_offset.
   o.setFogOfWarReveal({ reveal = true, color = "All", range = v.range })
+  pcall(function() o.setFogOfWarReveal({ height = v.height }) end)
   if v.angle < 360 or (v.rot or 0) ~= 0 then
     pcall(function() o.setFogOfWarReveal({ fov = v.angle, fov_offset = v.rot }) end)
   end
@@ -659,7 +661,7 @@ function reportReveal(c, o)
   local ok, r = pcall(o.getFogOfWarReveal)
   if ok and type(r) == "table" then
     say(c, string.format(tr("Revelador: %s, alcance %s, cor %s"),
-      tostring(r.reveal), tostring(r.range), tostring(r.color)))
+      tostring(r.reveal), tostring(r.range), tostring(r.color)) .. "  h=" .. tostring(r.height))
   else
     say(c, tr("O TTS não informou a revelação deste objeto."))
   end
