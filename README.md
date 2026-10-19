@@ -21,6 +21,14 @@ Uma mesa de controle em 3D (moldura de nogueira, tampo de couro ardósia, detalh
 - **Grade:** linhas por cima do mapa e encaixe (snap); tamanho, cor, espessura, intensidade, alinhamento e **Seguir relevo** (as linhas sobem por cima de props e terrenos 3D).
 - **Área:** detectar, calibrar (mire nos cantos), mostrar área, fixar objetos; idioma; **Resetar tudo** (a mesa volta ao padrão e as configurações de imagem, grade e área são apagadas — os mapas continuam no Atlas).
 
+## Névoa de guerra (objeto separado)
+Um objeto à parte, como o spawner do OneWorld: o botão **NÉVOA** (um botão 3D de nogueira, latão e ardósia, com um olho dourado) cobre o mapa com o Fog of War nativo do TTS. Tudo dentro da névoa (o mapa, objetos e tokens) fica escondido dos jogadores; quem está no Black (mestre/host) enxerga tudo.
+- **Instalação:** **Objects > Components > Custom > Model** com Mesh `assets/nevoa.obj` e Diffuse `assets/nevoa.png` (aceite subir para a Cloud), clique direito > **Scripting > Scripting Editor**, cole `Nevoa.lua` e **Save & Play**. Atalho: copie `assets/nevoa_objeto.json` para *Saves/Saved Objects*.
+- **Mesma área do Atlas:** a névoa cobre a área do mapa (automática ou calibrada na aba **Área**) e acompanha a calibragem. Para isso o `Atlas.lua` tem a função `getInfo()`. Sem o Atlas, usa 95 x 72.
+- **Botão NÉVOA:** cria a névoa; clique de novo para remover. **Clique direito:** informações (área, zona e reveladores), remover todas as névoas, esconder tudo de novo, criar revelador e marcar os objetos selecionados como reveladores.
+- **Reveladores:** o script só liga o *Reveal Fog of War*; alcance, cor e o resto se ajustam no próprio revelador (Toggles > Reveal Fog of War), como no TTS. As opções da névoa (ReHide Objects, Fog Height...) ficam no clique esquerdo nela.
+- **Por mapa:** cada mapa do Atlas guarda a própria névoa e o que já foi revelado; ao trocar de mapa ela volta como estava.
+
 ## Ajustes
 No topo de `Atlas.lua`: `DECAL_ROT` (se as miniaturas aparecerem de cabeça para baixo), `U` (tamanho dos botões), `TABLE_FRACTION` (área automática por tipo de mesa).
 `tools/gerar_modelo.py` gera o modelo e a textura (precisa de `pillow` e `numpy`).
@@ -43,3 +51,12 @@ A 3D control desk (walnut frame, slate leather top, brass details) that stores y
 - **Image:** **Fit to table** (main). *Advanced:* **Fit** / **Fill** over the area with zoom, rotation and position.
 - **Grid:** lines over the map, snap, size, color, thickness, strength, alignment and **Follow terrain**.
 - **Area:** detect, calibrate, show area, pin objects; language; **Reset everything** (the table returns to default; the maps stay in the Atlas).
+
+
+## Fog of war (separate object)
+A separate object, like OneWorld's spawner: the **FOG** button (a 3D walnut, brass and slate button with a golden eye) covers the map with TTS's native Fog of War. Everything inside the fog (the map, objects and tokens) is hidden from the players; whoever is on Black (GM/host) sees everything.
+- **Install:** **Objects > Components > Custom > Model** with Mesh `assets/nevoa.obj` and Diffuse `assets/nevoa.png` (accept the Cloud upload), right-click > **Scripting > Scripting Editor**, paste `Nevoa.lua` and **Save & Play**. Shortcut: copy `assets/nevoa_objeto.json` into *Saves/Saved Objects*.
+- **Same area as the Atlas:** the fog covers the map area (automatic or calibrated in the **Area** tab) and follows recalibration. The `Atlas.lua` exposes `getInfo()` for that. Without the Atlas it uses 95 x 72.
+- **FOG button:** creates the fog; click again to remove it. **Right-click:** info (area, zone and revealers), remove all fogs, hide everything again, create a revealer and make the selected objects revealers.
+- **Revealers:** the script only turns on *Reveal Fog of War*; range, color and the rest are set on the revealer itself (Toggles > Reveal Fog of War), as in TTS. The fog's own options (ReHide Objects, Fog Height...) are on its left-click menu.
+- **Per map:** each Atlas map keeps its own fog and what was already revealed; switching maps brings it back as it was.

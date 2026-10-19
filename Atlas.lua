@@ -205,6 +205,12 @@ function current()
   return D.current and D.maps[D.current] or nil
 end
 
+-- Informações para outros objetos (ex.: a Névoa de guerra): área do mapa, mapa ativo e idioma.
+function getInfo()
+  local m = current()
+  return { area = D.area, map = D.current, mapName = m and m.name or nil, lang = D.lang }
+end
+
 function trim(s)
   s = s or ""
   local i, j = 1, #s
